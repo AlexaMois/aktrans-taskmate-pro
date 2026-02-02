@@ -146,6 +146,41 @@ export default function Dashboard() {
     return result;
   }, [tasks, activeTab, user, searchQuery, selectedOwner, selectedStatus, selectedPriority]);
 
+  const syncTaskToSheets = async (task: Task) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sheets`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            scope: task.scope,
+            author_name: task.author?.name || "",
+            owner_name: task.owner?.name || null,
+            owner_telegram_id: task.owner?.telegram_id || null,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Sync to sheets failed:", errorData);
+      }
+    } catch (error) {
+      console.error("Error syncing to sheets:", error);
+    }
+  };
+
   const handleCreateTask = async (title: string) => {
     if (!user) return;
 
@@ -210,6 +245,9 @@ export default function Dashboard() {
 
       setTasks((prev) => [newTask, ...prev]);
       toast.success("Задача создана");
+
+      // Sync to Google Sheets in background
+      syncTaskToSheets(newTask);
     } catch (error) {
       console.error("Error creating task:", error);
       toast.error("Ошибка создания задачи");
