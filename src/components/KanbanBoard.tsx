@@ -31,21 +31,23 @@ export default function KanbanBoard({ tasks, onTaskClick, onStatusChange }: Kanb
 
   const getColumnColor = (status: TaskStatus) => {
     switch (status) {
-      case 'backlog':
+      case 'ideas':
         return 'bg-muted/50';
-      case 'in_progress':
+      case 'planned':
         return 'bg-primary/10';
-      case 'review':
+      case 'in_progress':
         return 'bg-accent';
-      case 'done':
+      case 'review':
         return 'bg-secondary/10';
+      case 'done':
+        return 'bg-muted/30';
       default:
         return 'bg-muted/50';
     }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 h-[calc(100vh-320px)]">
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 h-[calc(100vh-320px)]">
       {STATUS_ORDER.map((status) => (
         <div
           key={status}

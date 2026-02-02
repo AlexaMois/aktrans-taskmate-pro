@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, TaskStatus, TaskPriority, STATUS_LABELS, PRIORITY_LABELS } from '@/types';
+import { User, TaskStatus, STATUS_LABELS, PRIORITY_LABELS } from '@/types';
 import { Search } from 'lucide-react';
 
 interface TaskFiltersProps {
@@ -31,33 +31,19 @@ export default function TaskFilters({
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Поиск по названию и описанию..."
+          placeholder="Поиск по названию, описанию, автору, исполнителю..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      <Select value={selectedOwner} onValueChange={onOwnerChange}>
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Исполнитель" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          {users.map((user) => (
-            <SelectItem key={user.id} value={user.id}>
-              {user.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       <Select value={selectedStatus} onValueChange={onStatusChange}>
         <SelectTrigger className="w-[180px]">
           <SelectValue placeholder="Статус" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
+          <SelectItem value="all">Все статусы</SelectItem>
           {(Object.entries(STATUS_LABELS) as [TaskStatus, string][]).map(([value, label]) => (
             <SelectItem key={value} value={value}>
               {label}
@@ -71,10 +57,24 @@ export default function TaskFilters({
           <SelectValue placeholder="Приоритет" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          {(Object.entries(PRIORITY_LABELS) as [TaskPriority, string][]).map(([value, label]) => (
+          <SelectItem value="all">Все приоритеты</SelectItem>
+          {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
             <SelectItem key={value} value={value}>
               {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={selectedOwner} onValueChange={onOwnerChange}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Исполнитель" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Все исполнители</SelectItem>
+          {users.map((user) => (
+            <SelectItem key={user.id} value={user.id}>
+              {user.name}
             </SelectItem>
           ))}
         </SelectContent>
