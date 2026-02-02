@@ -177,7 +177,8 @@ export type Database = {
           description: string | null
           id: string
           owner_id: string | null
-          priority: Database["public"]["Enums"]["task_priority"]
+          priority: number
+          scope: Database["public"]["Enums"]["task_scope"]
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
@@ -188,7 +189,8 @@ export type Database = {
           description?: string | null
           id?: string
           owner_id?: string | null
-          priority?: Database["public"]["Enums"]["task_priority"]
+          priority?: number
+          scope?: Database["public"]["Enums"]["task_scope"]
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
@@ -199,7 +201,8 @@ export type Database = {
           description?: string | null
           id?: string
           owner_id?: string | null
-          priority?: Database["public"]["Enums"]["task_priority"]
+          priority?: number
+          scope?: Database["public"]["Enums"]["task_scope"]
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -272,8 +275,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
-      task_priority: "normal" | "urgent"
-      task_status: "backlog" | "in_progress" | "review" | "done"
+      task_scope: "common" | "personal"
+      task_status: "ideas" | "planned" | "in_progress" | "review" | "done"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -402,8 +405,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
-      task_priority: ["normal", "urgent"],
-      task_status: ["backlog", "in_progress", "review", "done"],
+      task_scope: ["common", "personal"],
+      task_status: ["ideas", "planned", "in_progress", "review", "done"],
     },
   },
 } as const

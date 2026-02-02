@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Task, User, Comment, TaskHistory, Attachment, TaskStatus, TaskPriority, STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER } from '@/types';
+import { Task, User, Comment, TaskHistory, Attachment, TaskStatus, TaskScope, STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -178,7 +178,8 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
           title: updatedData.title,
           description: updatedData.description,
           status: updatedData.status as TaskStatus,
-          priority: updatedData.priority as 'normal' | 'urgent',
+          priority: updatedData.priority as number,
+          scope: updatedData.scope as TaskScope,
           owner_id: updatedData.owner_id,
           author_id: updatedData.author_id,
           created_at: updatedData.created_at,
@@ -259,7 +260,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
       }]);
       setNewComment('');
       
-      // Log comment addition
       await logHistory(task.id, 'Добавлен комментарий', null, newComment.trim().substring(0, 50) + (newComment.trim().length > 50 ? '...' : ''));
       
       toast.success('Комментарий добавлен');
@@ -289,7 +289,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
       setAttachments([data as Attachment, ...attachments]);
       
-      // Log link addition
       await logHistory(task.id, 'Добавлена ссылка', null, newLinkName.trim());
       
       setNewLinkUrl('');
@@ -322,7 +321,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
         throw new Error(data.error);
       }
 
-      // Save attachment to database
       const { data: attachmentData, error: attachmentError } = await supabase
         .from('attachments')
         .insert({
@@ -339,7 +337,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
       setAttachments([attachmentData as Attachment, ...attachments]);
       
-      // Log file upload
       await logHistory(task.id, 'Загружен файл', null, data.name);
       
       toast.success('Файл загружен');
@@ -361,7 +358,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
       setAttachments(attachments.filter(a => a.id !== attachment.id));
       
-      // Log deletion
       if (task) {
         await logHistory(task.id, 'Удалено вложение', attachment.name, null);
       }
@@ -439,16 +435,17 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                 <div className="space-y-2">
                   <Label>Приоритет</Label>
                   <Select
-                    value={editedTask.priority}
-                    onValueChange={(v) => setEditedTask({ ...editedTask, priority: v as TaskPriority })}
+                    value={String(editedTask.priority)}
+                    onValueChange={(v) => setEditedTask({ ...editedTask, priority: parseInt(v) })}
                     disabled={!canEdit}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="normal">Обычный</SelectItem>
-                      <SelectItem value="urgent">Срочный</SelectItem>
+                      <SelectItem value="1">Высокий</SelectItem>
+                      <SelectItem value="2">Средний</SelectItem>
+                      <SelectItem value="3">Низкий</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -494,55 +491,48 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
             </TabsContent>
 
             <TabsContent value="attachments" className="mt-0 space-y-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Загрузить файл на Google Drive</Label>
-                  <div className="flex gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      id="file-upload"
-                    />
-                    <Button 
-                      onClick={() => fileInputRef.current?.click()} 
-                      variant="outline"
-                      disabled={isUploading}
-                      className="w-full"
-                    >
-                      {isUploading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Загрузка...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Выбрать файл
-                        </>
-                      )}
-                    </Button>
-                  </div>
+              <div className="space-y-2">
+                <Label>Добавить ссылку</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Название"
+                    value={newLinkName}
+                    onChange={(e) => setNewLinkName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="URL"
+                    value={newLinkUrl}
+                    onChange={(e) => setNewLinkUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleAddLink} disabled={!newLinkUrl.trim() || !newLinkName.trim()}>
+                    <Link className="h-4 w-4" />
+                  </Button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label>Добавить ссылку</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Название"
-                      value={newLinkName}
-                      onChange={(e) => setNewLinkName(e.target.value)}
-                    />
-                    <Input
-                      placeholder="URL"
-                      value={newLinkUrl}
-                      onChange={(e) => setNewLinkUrl(e.target.value)}
-                    />
-                    <Button onClick={handleAddLink} size="icon">
-                      <Link className="h-4 w-4" />
-                    </Button>
-                  </div>
+              <div className="space-y-2">
+                <Label>Загрузить файл</Label>
+                <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Выбрать файл
+                  </Button>
                 </div>
               </div>
 
@@ -550,26 +540,21 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
               <div className="space-y-2">
                 {attachments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Нет вложений
-                  </p>
+                  <p className="text-sm text-muted-foreground">Нет вложений</p>
                 ) : (
                   attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between p-2 rounded-md bg-muted/50"
-                    >
+                    <div key={attachment.id} className="flex items-center justify-between p-2 rounded border">
                       <div className="flex items-center gap-2">
                         {attachment.type === 'link' ? (
                           <Link className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <Paperclip className="h-4 w-4 text-muted-foreground" />
                         )}
-                        <a
-                          href={attachment.url}
-                          target="_blank"
+                        <a 
+                          href={attachment.url} 
+                          target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-sm hover:underline flex items-center gap-1"
+                          className="text-sm text-primary hover:underline flex items-center gap-1"
                         >
                           {attachment.name}
                           <ExternalLink className="h-3 w-3" />
@@ -590,16 +575,20 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
             <TabsContent value="comments" className="mt-0 space-y-4">
               <div className="space-y-2">
-                {comments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Нет комментариев
-                  </p>
+                {isLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : comments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Нет комментариев</p>
                 ) : (
                   comments.map((comment) => (
-                    <div key={comment.id} className="p-3 rounded-md bg-muted/50 space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="font-medium">{comment.author?.name || 'Неизвестно'}</span>
-                        <span>{format(new Date(comment.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</span>
+                    <div key={comment.id} className="p-3 rounded border space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{comment.author?.name || 'Неизвестно'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(comment.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}
+                        </span>
                       </div>
                       <p className="text-sm">{comment.text}</p>
                     </div>
@@ -608,39 +597,44 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
               </div>
 
               <div className="flex gap-2">
-                <Input
+                <Textarea
                   placeholder="Написать комментарий..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                  rows={2}
                 />
-                <Button onClick={handleAddComment} size="icon">
+                <Button onClick={handleAddComment} disabled={!newComment.trim()}>
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
             </TabsContent>
 
             <TabsContent value="history" className="mt-0 space-y-2">
-              {history.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Нет истории изменений
-                </p>
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : history.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Нет истории</p>
               ) : (
-                history.map((item) => (
-                  <div key={item.id} className="p-3 rounded-md bg-muted/50 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-medium">{item.author?.name || 'Неизвестно'}</span>
-                      <span>{format(new Date(item.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</span>
+                history.map((entry) => (
+                  <div key={entry.id} className="p-3 rounded border space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{entry.action}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(entry.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}
+                      </span>
                     </div>
-                    <p className="text-sm">
-                      {item.action}
-                      {item.old_value && (
-                        <>: <span className="line-through text-muted-foreground">{item.old_value}</span></>
-                      )}
-                      {item.new_value && (
-                        <>{item.old_value ? ' → ' : ': '}<span className="font-medium">{item.new_value}</span></>
-                      )}
-                    </p>
+                    <div className="text-xs text-muted-foreground">
+                      {entry.author?.name || 'Неизвестно'}
+                    </div>
+                    {(entry.old_value || entry.new_value) && (
+                      <div className="text-sm">
+                        {entry.old_value && <span className="line-through text-muted-foreground">{entry.old_value}</span>}
+                        {entry.old_value && entry.new_value && <span className="mx-2">→</span>}
+                        {entry.new_value && <span>{entry.new_value}</span>}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -648,21 +642,26 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="gap-2">
-          {isAdmin && (
-            <Button variant="destructive" onClick={handleDelete}>
-              Удалить
+        <DialogFooter className="flex justify-between">
+          <div>
+            {isAdmin && (
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Удалить
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Отмена
             </Button>
-          )}
-          <Button variant="outline" onClick={onClose}>
-            Отмена
-          </Button>
-          {canEdit && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Сохранить
-            </Button>
-          )}
+            {canEdit && (
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Сохранить
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

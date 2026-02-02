@@ -1,6 +1,6 @@
 export type AppRole = 'admin' | 'user';
-export type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done';
-export type TaskPriority = 'normal' | 'urgent';
+export type TaskStatus = 'ideas' | 'planned' | 'in_progress' | 'review' | 'done';
+export type TaskScope = 'common' | 'personal';
 
 export interface User {
   id: string;
@@ -15,7 +15,8 @@ export interface Task {
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: TaskPriority;
+  priority: number;
+  scope: TaskScope;
   owner_id: string | null;
   author_id: string;
   created_at: string;
@@ -55,15 +56,23 @@ export interface Attachment {
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
-  backlog: 'Backlog',
-  in_progress: 'В работе',
+  ideas: 'Идеи',
+  planned: 'Запланировано',
+  in_progress: 'В разработке',
   review: 'На проверке',
-  done: 'Готово',
+  done: 'Завершено',
 };
 
-export const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  normal: 'Обычный',
-  urgent: 'Срочный',
+export const PRIORITY_LABELS: Record<number, string> = {
+  1: 'Высокий',
+  2: 'Средний',
+  3: 'Низкий',
 };
 
-export const STATUS_ORDER: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done'];
+export const PRIORITY_COLORS: Record<number, string> = {
+  1: 'bg-red-500',
+  2: 'bg-yellow-500',
+  3: 'bg-green-500',
+};
+
+export const STATUS_ORDER: TaskStatus[] = ['ideas', 'planned', 'in_progress', 'review', 'done'];

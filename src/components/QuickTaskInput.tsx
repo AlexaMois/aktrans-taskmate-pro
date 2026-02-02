@@ -1,36 +1,24 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Mic, MicOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface QuickTaskInputProps {
-  onCreateTask: (title: string, isUrgent: boolean) => void;
+  onCreateTask: (title: string) => void;
   isCreating: boolean;
 }
 
 export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskInputProps) {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-
-  const parseInput = (text: string) => {
-    const lowerText = text.toLowerCase();
-    const isUrgent = lowerText.includes('срочно') || lowerText.includes('urgent');
-    const title = text.replace(/срочно|urgent/gi, '').trim();
-    return { title, isUrgent };
-  };
+  const recognitionRef = useRef<any>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const { title, isUrgent } = parseInput(input);
-    if (!title) {
-      toast.error('Введите название задачи');
-      return;
-    }
-
-    onCreateTask(title, isUrgent);
+    onCreateTask(input.trim());
     setInput('');
   };
 
@@ -40,8 +28,15 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
       return;
     }
 
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
     
     recognition.lang = 'ru-RU';
     recognition.continuous = false;
@@ -57,8 +52,11 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      toast.success('Текст распознан');
+      if (transcript.trim()) {
+        // Auto-create task after voice recognition
+        onCreateTask(transcript.trim());
+        toast.success('Задача создана голосом');
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -72,7 +70,7 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
   return (
     <form onSubmit={handleSubmit} className="flex gap-2">
       <Input
-        placeholder="Сделать отчёт Power BI для Арсения срочно"
+        placeholder="Введите название задачи..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
         className="flex-1"
@@ -83,7 +81,7 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
         variant="outline"
         size="icon"
         onClick={handleVoiceInput}
-        disabled={isRecording || isCreating}
+        disabled={isCreating}
       >
         {isRecording ? (
           <MicOff className="h-4 w-4 text-destructive" />

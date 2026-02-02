@@ -1,7 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Task } from '@/types';
-import { AlertTriangle } from 'lucide-react';
+import { Task, PRIORITY_LABELS, PRIORITY_COLORS } from '@/types';
 
 interface TaskCardProps {
   task: Task;
@@ -11,24 +10,25 @@ interface TaskCardProps {
 export default function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <Card 
-      className="cursor-pointer hover:shadow-md transition-shadow"
+      className="cursor-pointer hover:shadow-md transition-shadow relative overflow-hidden"
       onClick={onClick}
     >
-      <CardHeader className="p-3 pb-1">
+      {/* Priority color stripe */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${PRIORITY_COLORS[task.priority]}`} />
+      
+      <CardHeader className="p-3 pb-1 pl-4">
         <div className="flex items-start justify-between gap-2">
           <h4 className="text-sm font-medium line-clamp-2">{task.title}</h4>
-          {task.priority === 'urgent' && (
-            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
-          )}
         </div>
       </CardHeader>
-      <CardContent className="p-3 pt-1">
+      <CardContent className="p-3 pt-1 pl-4">
         <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-          {task.priority === 'urgent' && (
-            <Badge variant="destructive" className="text-xs">
-              Срочно
-            </Badge>
-          )}
+          <Badge 
+            variant={task.priority === 1 ? 'destructive' : 'secondary'} 
+            className="text-xs"
+          >
+            {PRIORITY_LABELS[task.priority]}
+          </Badge>
           {task.author?.name && (
             <span>От: {task.author.name}</span>
           )}

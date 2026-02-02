@@ -7,7 +7,7 @@ import TaskFilters from "@/components/TaskFilters";
 import QuickTaskInput from "@/components/QuickTaskInput";
 import KanbanBoard from "@/components/KanbanBoard";
 import TaskModal from "@/components/TaskModal";
-import { Task, User, TaskStatus } from "@/types";
+import { Task, User, TaskStatus, TaskScope } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"all" | "my">("all");
+  const [activeTab, setActiveTab] = useState<TaskScope>("common");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOwner, setSelectedOwner] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -57,7 +57,8 @@ export default function Dashboard() {
         title: t.title,
         description: t.description,
         status: t.status as TaskStatus,
-        priority: t.priority as "normal" | "urgent",
+        priority: t.priority as number,
+        scope: t.scope as TaskScope,
         owner_id: t.owner_id,
         author_id: t.author_id,
         created_at: t.created_at,
@@ -103,12 +104,14 @@ export default function Dashboard() {
   const filteredTasks = useMemo(() => {
     let result = tasks;
 
-    // МОИ ЗАДАЧИ — показываем если я автор ИЛИ я исполнитель
-    if (activeTab === "my" && user) {
-      result = result.filter((t) => t.owner_id === user.id || t.author_id === user.id);
+    // Filter by scope (tab)
+    if (activeTab === "common") {
+      result = result.filter((t) => t.scope === "common");
+    } else if (activeTab === "personal" && user) {
+      result = result.filter((t) => t.scope === "personal" && t.owner_id === user.id);
     }
 
-    // Поиск: title/description/author/owner
+    // Search: title/description/author/owner
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((t) => {
@@ -129,26 +132,34 @@ export default function Dashboard() {
     }
 
     if (selectedPriority !== "all") {
-      result = result.filter((t) => t.priority === selectedPriority);
+      result = result.filter((t) => t.priority === parseInt(selectedPriority));
     }
 
     return result;
   }, [tasks, activeTab, user, searchQuery, selectedOwner, selectedStatus, selectedPriority]);
 
-  const handleCreateTask = async (title: string, isUrgent: boolean) => {
+  const handleCreateTask = async (title: string) => {
     if (!user) return;
 
     setIsCreating(true);
     try {
-      // ВАЖНО: status должен быть из enum в БД
+      const scope: TaskScope = activeTab;
+      const insertData: any = {
+        title,
+        priority: 2, // Default medium priority
+        author_id: user.id,
+        status: "ideas",
+        scope,
+      };
+
+      // For personal tasks, set owner_id to current user
+      if (scope === "personal") {
+        insertData.owner_id = user.id;
+      }
+
       const { data, error } = await supabase
         .from("tasks")
-        .insert({
-          title,
-          priority: isUrgent ? "urgent" : "normal",
-          author_id: user.id,
-          status: "backlog", // НЕ 'ideas'
-        })
+        .insert(insertData)
         .select("*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)")
         .single();
 
@@ -167,7 +178,8 @@ export default function Dashboard() {
         title: data.title,
         description: data.description,
         status: data.status as TaskStatus,
-        priority: data.priority as "normal" | "urgent",
+        priority: data.priority as number,
+        scope: data.scope as TaskScope,
         owner_id: data.owner_id,
         author_id: data.author_id,
         created_at: data.created_at,

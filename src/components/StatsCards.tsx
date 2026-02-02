@@ -9,7 +9,7 @@ interface StatsCardsProps {
 export default function StatsCards({ tasks }: StatsCardsProps) {
   const totalTasks = tasks.length;
   const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-  const urgent = tasks.filter(t => t.priority === 'urgent').length;
+  const urgent = tasks.filter(t => t.priority === 1).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
