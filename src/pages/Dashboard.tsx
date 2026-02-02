@@ -183,6 +183,29 @@ export default function Dashboard() {
     }
   };
 
+  const sendPersonalTaskNotification = async (task: Task) => {
+    if (task.scope !== "personal" || !task.owner?.telegram_id) return;
+
+    try {
+      const notifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-telegram-notification`;
+      const text = `✅ <b>Создана личная задача</b>\n\n📝 ${task.title}\n\nЗадача добавлена в ваш личный список.`;
+
+      await fetch(notifyUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
+          telegram_id: task.owner.telegram_id,
+          text,
+        }),
+      });
+    } catch (error) {
+      console.error("Error sending personal task notification:", error);
+    }
+  };
+
   const handleCreateTask = async (title: string) => {
     if (!user) return;
 
@@ -250,6 +273,9 @@ export default function Dashboard() {
 
       // Sync to Google Sheets in background
       syncTaskToSheets(newTask);
+
+      // Send Telegram notification for personal tasks only
+      sendPersonalTaskNotification(newTask);
     } catch (error) {
       console.error("Error creating task:", error);
       toast.error("Ошибка создания задачи");
