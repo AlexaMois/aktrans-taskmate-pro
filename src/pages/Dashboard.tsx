@@ -148,37 +148,28 @@ export default function Dashboard() {
 
   const syncTaskToSheets = async (task: Task) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
+      const syncUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sheets`;
 
-      if (!accessToken) {
-        console.error("No access token available for sync");
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sheets`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            status: task.status,
-            priority: task.priority,
-            scope: task.scope,
-            author_name: task.author?.name || "",
-            owner_name: task.owner?.name || null,
-            owner_telegram_id: task.owner?.telegram_id || null,
-            created_at: task.created_at,
-            updated_at: task.updated_at,
-          }),
-        }
-      );
+      const response = await fetch(syncUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          scope: task.scope,
+          author_name: task.author?.name || "",
+          owner_name: task.owner?.name || null,
+          owner_telegram_id: task.owner?.telegram_id || null,
+          created_at: task.created_at,
+          updated_at: task.updated_at,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
