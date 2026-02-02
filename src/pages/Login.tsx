@@ -26,8 +26,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .rpc('get_user_by_telegram_id', { _telegram_id: telegramId.trim() });
+      // Call edge function to authenticate via Google Sheets
+      const { data, error } = await supabase.functions.invoke('auth-telegram', {
+        body: { telegram_id: telegramId.trim() },
+      });
 
       if (error) {
         console.error('Auth error:', error);
@@ -35,27 +37,18 @@ export default function Login() {
         return;
       }
 
-      if (!data || data.length === 0) {
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (!data.user) {
         toast.error('Нет доступа');
         return;
       }
 
-      const userData = data[0];
-      
-      if (!userData.active) {
-        toast.error('Нет доступа');
-        return;
-      }
-
-      login({
-        id: userData.id,
-        telegram_id: userData.telegram_id,
-        name: userData.name,
-        active: userData.active,
-        role: userData.role || 'user',
-      });
-
-      toast.success(`Добро пожаловать, ${userData.name}!`);
+      login(data.user);
+      toast.success(`Добро пожаловать, ${data.user.name}!`);
       navigate('/');
     } catch (error) {
       console.error('Login error:', error);

@@ -154,6 +154,15 @@ export default function Dashboard() {
 
       if (error) throw error;
 
+      // Log task creation to history
+      await supabase.from('task_history').insert({
+        task_id: data.id,
+        action: 'Задача создана',
+        old_value: null,
+        new_value: title,
+        author_id: user.id,
+      });
+
       const newTask: Task = {
         id: data.id,
         title: data.title,
@@ -211,16 +220,28 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      // Log to history
+      // Log to history with proper status labels
+      const { STATUS_LABELS } = await import('@/types');
       await supabase.from('task_history').insert({
         task_id: taskId,
         action: 'Изменён статус',
-        old_value: task.status,
-        new_value: newStatus,
+        old_value: STATUS_LABELS[task.status],
+        new_value: STATUS_LABELS[newStatus],
         author_id: user!.id,
       });
 
-      setTasks(tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
+      // Get updated task with new updated_at
+      const { data: updatedData } = await supabase
+        .from('tasks')
+        .select('updated_at')
+        .eq('id', taskId)
+        .single();
+
+      setTasks(tasks.map(t => (t.id === taskId ? { 
+        ...t, 
+        status: newStatus,
+        updated_at: updatedData?.updated_at || t.updated_at
+      } : t)));
       toast.success('Статус обновлён');
     } catch (error) {
       console.error('Error updating status:', error);
