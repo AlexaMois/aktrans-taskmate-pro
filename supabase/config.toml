@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.sync-sheets]
 verify_jwt = false
+
+[functions.send-telegram-notification]
+verify_jwt = false
