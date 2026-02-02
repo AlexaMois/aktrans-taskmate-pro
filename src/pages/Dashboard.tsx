@@ -41,11 +41,19 @@ export default function Dashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      // Build tasks query based on user role - filter at DB level for privacy
+      let tasksQuery = supabase
+        .from("tasks")
+        .select("*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)")
+        .order("created_at", { ascending: false });
+
+      // Non-admin users only see: common tasks OR their own personal tasks
+      if (user && user.role !== "admin") {
+        tasksQuery = tasksQuery.or(`scope.eq.common,and(scope.eq.personal,owner_id.eq.${user.id})`);
+      }
+
       const [tasksRes, usersRes] = await Promise.all([
-        supabase
-          .from("tasks")
-          .select("*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)")
-          .order("created_at", { ascending: false }),
+        tasksQuery,
         supabase.from("profiles").select("*, user_roles(role)").eq("active", true),
       ]);
 
