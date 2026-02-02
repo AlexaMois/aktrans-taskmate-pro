@@ -49,18 +49,18 @@ export default function KanbanBoard({ tasks, onTaskClick, onStatusChange }: Kanb
   return (
     <>
       {/* Mobile: Horizontal scroll */}
-      <div className="md:hidden -mx-4 px-4">
-        <div className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory">
+      <div className="md:hidden -mx-3 px-3">
+        <div className="flex gap-2.5 overflow-x-auto pb-4 snap-x snap-mandatory -webkit-overflow-scrolling-touch">
           {STATUS_ORDER.map((status) => (
             <div
               key={status}
-              className={`flex-shrink-0 w-[280px] rounded-lg ${getColumnStyle(status)} p-3 snap-start`}
+              className={`flex-shrink-0 w-[260px] rounded-lg ${getColumnStyle(status)} p-2.5 snap-start`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, status)}
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2.5">
                 <h3 className="font-medium text-sm">{STATUS_LABELS[status]}</h3>
-                <span className="text-xs text-muted-foreground bg-background/80 rounded-full px-2 py-0.5">
+                <span className="text-xs text-muted-foreground bg-background/80 rounded-full px-2 py-0.5 min-w-[24px] text-center">
                   {getTasksByStatus(status).length}
                 </span>
               </div>

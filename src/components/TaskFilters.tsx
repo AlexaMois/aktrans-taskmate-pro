@@ -38,17 +38,17 @@ export default function TaskFilters({
   ].filter(Boolean).length;
 
   const FilterContent = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="space-y-2">
         <label className="text-sm font-medium">Статус</label>
         <Select value={selectedStatus} onValueChange={onStatusChange}>
-          <SelectTrigger className="h-11">
+          <SelectTrigger className="h-12 text-base md:h-11 md:text-sm">
             <SelectValue placeholder="Все статусы" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Все статусы</SelectItem>
+            <SelectItem value="all" className="py-3 md:py-2">Все статусы</SelectItem>
             {(Object.entries(STATUS_LABELS) as [TaskStatus, string][]).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
+              <SelectItem key={value} value={value} className="py-3 md:py-2">
                 {label}
               </SelectItem>
             ))}
@@ -59,13 +59,13 @@ export default function TaskFilters({
       <div className="space-y-2">
         <label className="text-sm font-medium">Приоритет</label>
         <Select value={selectedPriority} onValueChange={onPriorityChange}>
-          <SelectTrigger className="h-11">
+          <SelectTrigger className="h-12 text-base md:h-11 md:text-sm">
             <SelectValue placeholder="Все приоритеты" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Все приоритеты</SelectItem>
+            <SelectItem value="all" className="py-3 md:py-2">Все приоритеты</SelectItem>
             {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
+              <SelectItem key={value} value={value} className="py-3 md:py-2">
                 {label}
               </SelectItem>
             ))}
@@ -76,13 +76,13 @@ export default function TaskFilters({
       <div className="space-y-2">
         <label className="text-sm font-medium">Исполнитель</label>
         <Select value={selectedOwner} onValueChange={onOwnerChange}>
-          <SelectTrigger className="h-11">
+          <SelectTrigger className="h-12 text-base md:h-11 md:text-sm">
             <SelectValue placeholder="Все исполнители" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Все исполнители</SelectItem>
+            <SelectItem value="all" className="py-3 md:py-2">Все исполнители</SelectItem>
             {users.map((user) => (
-              <SelectItem key={user.id} value={user.id}>
+              <SelectItem key={user.id} value={user.id} className="py-3 md:py-2">
                 {user.name}
               </SelectItem>
             ))}
@@ -93,15 +93,15 @@ export default function TaskFilters({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       {/* Search - always visible */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Поиск по названию, описанию, автору, исполнителю..."
+          placeholder="Поиск..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-11"
+          className="pl-9 h-12 md:h-11 text-base md:text-sm"
         />
       </div>
 
@@ -109,26 +109,26 @@ export default function TaskFilters({
       <div className="md:hidden">
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" className="w-full h-11 justify-between">
+            <Button variant="outline" className="w-full h-12 justify-between text-base">
               <span className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4" />
+                <SlidersHorizontal className="h-5 w-5" />
                 Фильтры
               </span>
               {activeFilters > 0 && (
-                <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                <span className="bg-primary text-primary-foreground text-xs px-2.5 py-1 rounded-full min-w-[24px]">
                   {activeFilters}
                 </span>
               )}
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-auto max-h-[80vh]">
+          <SheetContent side="bottom" className="h-auto max-h-[85vh] pb-safe">
             <SheetHeader>
-              <SheetTitle>Фильтры</SheetTitle>
+              <SheetTitle className="text-lg">Фильтры</SheetTitle>
             </SheetHeader>
             <div className="py-4">
               <FilterContent />
             </div>
-            <Button className="w-full h-11" onClick={() => setIsOpen(false)}>
+            <Button className="w-full h-12 text-base" onClick={() => setIsOpen(false)}>
               Применить
             </Button>
           </SheetContent>

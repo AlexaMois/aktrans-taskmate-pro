@@ -368,17 +368,17 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Редактирование задачи</DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[90vh] md:max-h-[90vh] h-[95vh] md:h-auto flex flex-col p-4 md:p-6">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-base md:text-lg">Редактирование задачи</DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="details">Детали</TabsTrigger>
-            <TabsTrigger value="attachments">Вложения</TabsTrigger>
-            <TabsTrigger value="comments">Комментарии</TabsTrigger>
-            <TabsTrigger value="history">История</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 h-11 md:h-10">
+            <TabsTrigger value="details" className="text-xs md:text-sm px-1 md:px-3">Детали</TabsTrigger>
+            <TabsTrigger value="attachments" className="text-xs md:text-sm px-1 md:px-3">Файлы</TabsTrigger>
+            <TabsTrigger value="comments" className="text-xs md:text-sm px-1 md:px-3">Шаги</TabsTrigger>
+            <TabsTrigger value="history" className="text-xs md:text-sm px-1 md:px-3">История</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="flex-1 mt-4">
@@ -659,21 +659,21 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="flex justify-between pt-4 border-t">
-          <div>
+        <DialogFooter className="flex flex-col-reverse gap-2 md:flex-row md:justify-between pt-4 border-t mt-auto">
+          <div className="w-full md:w-auto">
             {isAdmin && (
-              <Button variant="destructive" onClick={handleDelete}>
+              <Button variant="destructive" onClick={handleDelete} className="w-full md:w-auto h-12 md:h-10">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Удалить
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button variant="outline" onClick={onClose} className="flex-1 md:flex-none h-12 md:h-10">
               Отмена
             </Button>
             {canEdit && (
-              <Button onClick={handleSave} disabled={isSaving}>
+              <Button onClick={handleSave} disabled={isSaving} className="flex-1 md:flex-none h-12 md:h-10">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Сохранить
               </Button>
