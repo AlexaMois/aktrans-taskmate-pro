@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Task, PRIORITY_LABELS, PRIORITY_COLORS } from '@/types';
+import { Pencil } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
@@ -10,13 +11,18 @@ interface TaskCardProps {
 export default function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <Card 
-      className="cursor-pointer hover:bg-muted/50 transition-colors relative overflow-hidden border-l-0"
+      className="cursor-pointer hover:bg-muted/50 transition-colors relative overflow-hidden border-l-0 group"
       onClick={onClick}
     >
       {/* Priority color stripe */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${PRIORITY_COLORS[task.priority]}`} />
       
-      <CardHeader className="p-3 pb-2 pl-4">
+      {/* Edit hint icon */}
+      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
+      
+      <CardHeader className="p-3 pb-2 pl-4 pr-8">
         <h4 className="text-sm font-medium line-clamp-2 leading-snug">{task.title}</h4>
       </CardHeader>
       <CardContent className="p-3 pt-0 pl-4">
