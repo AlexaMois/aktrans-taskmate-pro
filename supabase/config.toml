@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.upload-file]
 verify_jwt = false
-
-[functions.sync-sheets]
-verify_jwt = false
