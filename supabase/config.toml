@@ -1,1 +1,7 @@
 project_id = "qcjgtysctnvkjpbfxoqm"
+
+[functions.auth-telegram]
+verify_jwt = false
+
+[functions.upload-file]
+verify_jwt = false

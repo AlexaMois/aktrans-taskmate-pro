@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Task, User, Comment, TaskHistory, Attachment, TaskStatus, TaskPriority, STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Loader2, Send, Link, Paperclip, Trash2, ExternalLink } from 'lucide-react';
+import { Loader2, Send, Link, Paperclip, Trash2, ExternalLink, Upload } from 'lucide-react';
 
 interface TaskModalProps {
   task: Task | null;
@@ -28,6 +27,7 @@ interface TaskModalProps {
 
 export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, onTaskDelete }: TaskModalProps) {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [history, setHistory] = useState<TaskHistory[]>([]);
@@ -37,6 +37,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
   const [newLinkName, setNewLinkName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
 
   const isAdmin = user?.role === 'admin';
@@ -106,11 +107,26 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
     }
   };
 
+  const logHistory = async (taskId: string, action: string, oldValue: string | null, newValue: string | null) => {
+    if (!user) return;
+    try {
+      await supabase.from('task_history').insert({
+        task_id: taskId,
+        action,
+        old_value: oldValue,
+        new_value: newValue,
+        author_id: user.id,
+      });
+    } catch (error) {
+      console.error('Error logging history:', error);
+    }
+  };
+
   const handleSave = async () => {
-    if (!editedTask || !user) return;
+    if (!editedTask || !user || !task) return;
 
     // Check permissions for status change to done
-    if (editedTask.status === 'done' && task?.status !== 'done' && !canSetDone) {
+    if (editedTask.status === 'done' && task.status !== 'done' && !canSetDone) {
       toast.error('Только администратор может завершить задачу');
       return;
     }
@@ -130,44 +146,63 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
       if (error) throw error;
 
-      // Log changes to history
-      const changes: { action: string; old_value: string | null; new_value: string | null }[] = [];
-      
-      if (task?.status !== editedTask.status) {
-        changes.push({
-          action: 'Изменён статус',
-          old_value: STATUS_LABELS[task!.status],
-          new_value: STATUS_LABELS[editedTask.status],
-        });
+      // Log all changes to history
+      if (task.title !== editedTask.title) {
+        await logHistory(editedTask.id, 'Изменено название', task.title, editedTask.title);
       }
-      if (task?.priority !== editedTask.priority) {
-        changes.push({
-          action: 'Изменён приоритет',
-          old_value: PRIORITY_LABELS[task!.priority],
-          new_value: PRIORITY_LABELS[editedTask.priority],
-        });
+      if (task.description !== editedTask.description) {
+        await logHistory(editedTask.id, 'Изменено описание', task.description || '(пусто)', editedTask.description || '(пусто)');
       }
-      if (task?.owner_id !== editedTask.owner_id) {
-        const oldOwner = users.find(u => u.id === task?.owner_id)?.name || 'Не назначен';
+      if (task.status !== editedTask.status) {
+        await logHistory(editedTask.id, 'Изменён статус', STATUS_LABELS[task.status], STATUS_LABELS[editedTask.status]);
+      }
+      if (task.priority !== editedTask.priority) {
+        await logHistory(editedTask.id, 'Изменён приоритет', PRIORITY_LABELS[task.priority], PRIORITY_LABELS[editedTask.priority]);
+      }
+      if (task.owner_id !== editedTask.owner_id) {
+        const oldOwner = users.find(u => u.id === task.owner_id)?.name || 'Не назначен';
         const newOwner = users.find(u => u.id === editedTask.owner_id)?.name || 'Не назначен';
-        changes.push({
-          action: 'Изменён исполнитель',
-          old_value: oldOwner,
-          new_value: newOwner,
-        });
+        await logHistory(editedTask.id, 'Изменён исполнитель', oldOwner, newOwner);
       }
 
-      for (const change of changes) {
-        await supabase.from('task_history').insert({
-          task_id: editedTask.id,
-          action: change.action,
-          old_value: change.old_value,
-          new_value: change.new_value,
-          author_id: user.id,
-        });
+      // Update task with new updated_at from server
+      const { data: updatedData } = await supabase
+        .from('tasks')
+        .select('*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)')
+        .eq('id', editedTask.id)
+        .single();
+
+      if (updatedData) {
+        const updatedTask: Task = {
+          id: updatedData.id,
+          title: updatedData.title,
+          description: updatedData.description,
+          status: updatedData.status as TaskStatus,
+          priority: updatedData.priority as 'normal' | 'urgent',
+          owner_id: updatedData.owner_id,
+          author_id: updatedData.author_id,
+          created_at: updatedData.created_at,
+          updated_at: updatedData.updated_at,
+          owner: updatedData.owner ? {
+            id: updatedData.owner.id,
+            telegram_id: updatedData.owner.telegram_id,
+            name: updatedData.owner.name,
+            active: updatedData.owner.active,
+            role: 'user' as const
+          } : null,
+          author: updatedData.author ? {
+            id: updatedData.author.id,
+            telegram_id: updatedData.author.telegram_id,
+            name: updatedData.author.name,
+            active: updatedData.author.active,
+            role: 'user' as const
+          } : null,
+        };
+        onTaskUpdate(updatedTask);
+      } else {
+        onTaskUpdate(editedTask);
       }
 
-      onTaskUpdate(editedTask);
       toast.success('Задача сохранена');
       onClose();
     } catch (error) {
@@ -223,6 +258,10 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
         } : null
       }]);
       setNewComment('');
+      
+      // Log comment addition
+      await logHistory(task.id, 'Добавлен комментарий', null, newComment.trim().substring(0, 50) + (newComment.trim().length > 50 ? '...' : ''));
+      
       toast.success('Комментарий добавлен');
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -249,6 +288,10 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
       if (error) throw error;
 
       setAttachments([data as Attachment, ...attachments]);
+      
+      // Log link addition
+      await logHistory(task.id, 'Добавлена ссылка', null, newLinkName.trim());
+      
       setNewLinkUrl('');
       setNewLinkName('');
       toast.success('Ссылка добавлена');
@@ -258,12 +301,71 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
     }
   };
 
-  const handleDeleteAttachment = async (attachmentId: string) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !task || !user) return;
+
+    setIsUploading(true);
     try {
-      const { error } = await supabase.from('attachments').delete().eq('id', attachmentId);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('task_id', task.id);
+      formData.append('file_name', file.name);
+
+      const { data, error } = await supabase.functions.invoke('upload-file', {
+        body: formData,
+      });
+
       if (error) throw error;
 
-      setAttachments(attachments.filter(a => a.id !== attachmentId));
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Save attachment to database
+      const { data: attachmentData, error: attachmentError } = await supabase
+        .from('attachments')
+        .insert({
+          task_id: task.id,
+          type: 'file',
+          name: data.name,
+          url: data.url,
+          author_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (attachmentError) throw attachmentError;
+
+      setAttachments([attachmentData as Attachment, ...attachments]);
+      
+      // Log file upload
+      await logHistory(task.id, 'Загружен файл', null, data.name);
+      
+      toast.success('Файл загружен');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Ошибка загрузки файла');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteAttachment = async (attachment: Attachment) => {
+    try {
+      const { error } = await supabase.from('attachments').delete().eq('id', attachment.id);
+      if (error) throw error;
+
+      setAttachments(attachments.filter(a => a.id !== attachment.id));
+      
+      // Log deletion
+      if (task) {
+        await logHistory(task.id, 'Удалено вложение', attachment.name, null);
+      }
+      
       toast.success('Вложение удалено');
     } catch (error) {
       console.error('Error deleting attachment:', error);
@@ -392,22 +494,55 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
             </TabsContent>
 
             <TabsContent value="attachments" className="mt-0 space-y-4">
-              <div className="space-y-2">
-                <Label>Добавить ссылку</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Название"
-                    value={newLinkName}
-                    onChange={(e) => setNewLinkName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="URL"
-                    value={newLinkUrl}
-                    onChange={(e) => setNewLinkUrl(e.target.value)}
-                  />
-                  <Button onClick={handleAddLink} size="icon">
-                    <Link className="h-4 w-4" />
-                  </Button>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Загрузить файл на Google Drive</Label>
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <Button 
+                      onClick={() => fileInputRef.current?.click()} 
+                      variant="outline"
+                      disabled={isUploading}
+                      className="w-full"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Загрузка...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Выбрать файл
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Добавить ссылку</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Название"
+                      value={newLinkName}
+                      onChange={(e) => setNewLinkName(e.target.value)}
+                    />
+                    <Input
+                      placeholder="URL"
+                      value={newLinkUrl}
+                      onChange={(e) => setNewLinkUrl(e.target.value)}
+                    />
+                    <Button onClick={handleAddLink} size="icon">
+                      <Link className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -443,7 +578,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteAttachment(attachment.id)}
+                        onClick={() => handleDeleteAttachment(attachment)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -498,8 +633,13 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                       <span>{format(new Date(item.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</span>
                     </div>
                     <p className="text-sm">
-                      {item.action}: <span className="line-through text-muted-foreground">{item.old_value}</span>{' '}
-                      → <span className="font-medium">{item.new_value}</span>
+                      {item.action}
+                      {item.old_value && (
+                        <>: <span className="line-through text-muted-foreground">{item.old_value}</span></>
+                      )}
+                      {item.new_value && (
+                        <>{item.old_value ? ' → ' : ': '}<span className="font-medium">{item.new_value}</span></>
+                      )}
                     </p>
                   </div>
                 ))
