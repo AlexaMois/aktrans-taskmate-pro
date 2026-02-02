@@ -132,10 +132,10 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
     setIsSaving(true);
     try {
+      // Note: title is NOT updated - it's read-only after creation
       const { error } = await supabase
         .from('tasks')
         .update({
-          title: editedTask.title,
           description: editedTask.description,
           status: editedTask.status,
           priority: editedTask.priority,
@@ -145,10 +145,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
       if (error) throw error;
 
-      // Log all changes to history
-      if (task.title !== editedTask.title) {
-        await logHistory(editedTask.id, 'Изменено название', task.title, editedTask.title);
-      }
+      // Log changes to history (title change is not logged as it's forbidden)
       if (task.description !== editedTask.description) {
         await logHistory(editedTask.id, 'Изменено описание', task.description || '(пусто)', editedTask.description || '(пусто)');
       }
@@ -393,9 +390,9 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                     <Label>Название</Label>
                     <Input
                       value={editedTask.title}
-                      onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
-                      disabled={!canEdit}
-                      className="h-11"
+                      disabled={true}
+                      className="h-11 bg-muted cursor-not-allowed"
+                      title="Название задачи нельзя изменить после создания"
                     />
                   </div>
 
@@ -583,6 +580,13 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
             </TabsContent>
 
             <TabsContent value="comments" className="mt-0 space-y-4">
+              {/* Hint for users */}
+              <div className="p-3 rounded-lg bg-muted/50 border border-dashed">
+                <p className="text-sm text-muted-foreground">
+                  💡 Пишите сюда шаги по задаче (что сделано / что дальше). Это видят все, история сохраняется.
+                </p>
+              </div>
+
               <div className="space-y-3">
                 {isLoading ? (
                   <div className="flex justify-center py-8">
@@ -605,17 +609,20 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                 )}
               </div>
 
-              <div className="flex gap-2 pt-2 border-t">
+              <div className="space-y-2 pt-2 border-t">
                 <Textarea
-                  placeholder="Написать комментарий..."
+                  placeholder="Опишите прогресс по задаче..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   rows={2}
-                  className="flex-1"
+                  className="w-full"
                 />
-                <Button onClick={handleAddComment} disabled={!newComment.trim()} className="h-auto">
-                  <Send className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleAddComment} disabled={!newComment.trim()} className="h-11 flex-1">
+                    <Send className="h-4 w-4 mr-2" />
+                    Добавить шаг
+                  </Button>
+                </div>
               </div>
             </TabsContent>
 
