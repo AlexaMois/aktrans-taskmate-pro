@@ -144,17 +144,14 @@ export default function Dashboard() {
     setIsCreating(true);
     try {
       const scope: TaskScope = activeTab;
-      const insertData: any = {
+      const insertData = {
         title,
-        priority: 2,
+        priority: 3, // Default: Низкий
         author_id: user.id,
-        status: "ideas",
+        owner_id: user.id, // Always set owner to current user
+        status: "ideas" as const,
         scope,
       };
-
-      if (scope === "personal") {
-        insertData.owner_id = user.id;
-      }
 
       const { data, error } = await supabase
         .from("tasks")

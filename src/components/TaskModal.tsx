@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Task, User, Comment, TaskHistory, Attachment, TaskStatus, TaskScope, STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,6 +48,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
     if (task) {
       setEditedTask({ ...task });
       loadTaskData(task.id);
+      setActiveTab('details');
     }
   }, [task]);
 
@@ -125,7 +125,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
   const handleSave = async () => {
     if (!editedTask || !user || !task) return;
 
-    // Check permissions for status change to done
     if (editedTask.status === 'done' && task.status !== 'done' && !canSetDone) {
       toast.error('Только администратор может завершить задачу');
       return;
@@ -165,7 +164,6 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
         await logHistory(editedTask.id, 'Изменён исполнитель', oldOwner, newOwner);
       }
 
-      // Update task with new updated_at from server
       const { data: updatedData } = await supabase
         .from('tasks')
         .select('*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)')
@@ -373,9 +371,9 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Задача</DialogTitle>
+          <DialogTitle>Редактирование задачи</DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
@@ -387,105 +385,116 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
           </TabsList>
 
           <ScrollArea className="flex-1 mt-4">
-            <TabsContent value="details" className="mt-0 space-y-4">
-              <div className="space-y-2">
-                <Label>Название</Label>
-                <Input
-                  value={editedTask.title}
-                  onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
-                  disabled={!canEdit}
-                />
-              </div>
+            <TabsContent value="details" className="mt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left column: Title & Description */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Название</Label>
+                    <Input
+                      value={editedTask.title}
+                      onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+                      disabled={!canEdit}
+                      className="h-11"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Описание</Label>
-                <Textarea
-                  value={editedTask.description || ''}
-                  onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
-                  disabled={!canEdit}
-                  rows={4}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Статус</Label>
-                  <Select
-                    value={editedTask.status}
-                    onValueChange={(v) => setEditedTask({ ...editedTask, status: v as TaskStatus })}
-                    disabled={!canEdit}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_ORDER.map((status) => (
-                        <SelectItem 
-                          key={status} 
-                          value={status}
-                          disabled={status === 'done' && !canSetDone}
-                        >
-                          {STATUS_LABELS[status]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <Label>Описание</Label>
+                    <Textarea
+                      value={editedTask.description || ''}
+                      onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                      disabled={!canEdit}
+                      rows={6}
+                      placeholder="Добавьте описание задачи..."
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Приоритет</Label>
-                  <Select
-                    value={String(editedTask.priority)}
-                    onValueChange={(v) => setEditedTask({ ...editedTask, priority: parseInt(v) })}
-                    disabled={!canEdit}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Высокий</SelectItem>
-                      <SelectItem value="2">Средний</SelectItem>
-                      <SelectItem value="3">Низкий</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                {/* Right column: Status, Priority, Owner, Meta */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Статус</Label>
+                    <Select
+                      value={editedTask.status}
+                      onValueChange={(v) => setEditedTask({ ...editedTask, status: v as TaskStatus })}
+                      disabled={!canEdit}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_ORDER.map((status) => (
+                          <SelectItem 
+                            key={status} 
+                            value={status}
+                            disabled={status === 'done' && !canSetDone}
+                          >
+                            {STATUS_LABELS[status]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Исполнитель</Label>
-                <Select
-                  value={editedTask.owner_id || 'unassigned'}
-                  onValueChange={(v) => setEditedTask({ ...editedTask, owner_id: v === 'unassigned' ? null : v })}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Не назначен</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label>Приоритет</Label>
+                    <Select
+                      value={String(editedTask.priority)}
+                      onValueChange={(v) => setEditedTask({ ...editedTask, priority: parseInt(v) })}
+                      disabled={!canEdit}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Высокий</SelectItem>
+                        <SelectItem value="2">Средний</SelectItem>
+                        <SelectItem value="3">Низкий</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <Separator />
+                  <div className="space-y-2">
+                    <Label>Исполнитель</Label>
+                    <Select
+                      value={editedTask.owner_id || 'unassigned'}
+                      onValueChange={(v) => setEditedTask({ ...editedTask, owner_id: v === 'unassigned' ? null : v })}
+                      disabled={!canEdit}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Не назначен</SelectItem>
+                        {users.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                <div>
-                  <Label className="text-xs">Автор</Label>
-                  <p>{task.author?.name || 'Неизвестно'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs">Создано</Label>
-                  <p>{format(new Date(task.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</p>
-                </div>
-                <div>
-                  <Label className="text-xs">Обновлено</Label>
-                  <p>{format(new Date(task.updated_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</p>
+                  {/* Read-only meta fields */}
+                  <div className="pt-4 border-t space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Автор</span>
+                      <span className="font-medium">{task.author?.name || 'Неизвестно'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Исполнитель</span>
+                      <span className="font-medium">{task.owner?.name || 'Не назначен'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Создано</span>
+                      <span>{format(new Date(task.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Обновлено</span>
+                      <span>{format(new Date(task.updated_at), 'dd.MM.yyyy HH:mm', { locale: ru })}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -498,15 +507,15 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                     placeholder="Название"
                     value={newLinkName}
                     onChange={(e) => setNewLinkName(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 h-11"
                   />
                   <Input
                     placeholder="URL"
                     value={newLinkUrl}
                     onChange={(e) => setNewLinkUrl(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 h-11"
                   />
-                  <Button onClick={handleAddLink} disabled={!newLinkUrl.trim() || !newLinkName.trim()}>
+                  <Button onClick={handleAddLink} disabled={!newLinkUrl.trim() || !newLinkName.trim()} className="h-11">
                     <Link className="h-4 w-4" />
                   </Button>
                 </div>
@@ -525,6 +534,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                     variant="outline" 
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
+                    className="h-11"
                   >
                     {isUploading ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -536,14 +546,12 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-2">
+              <div className="pt-4 border-t space-y-2">
                 {attachments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Нет вложений</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">Нет вложений</p>
                 ) : (
                   attachments.map((attachment) => (
-                    <div key={attachment.id} className="flex items-center justify-between p-2 rounded border">
+                    <div key={attachment.id} className="flex items-center justify-between p-3 rounded-lg border">
                       <div className="flex items-center gap-2">
                         {attachment.type === 'link' ? (
                           <Link className="h-4 w-4 text-muted-foreground" />
@@ -563,6 +571,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => handleDeleteAttachment(attachment)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -574,16 +583,16 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
             </TabsContent>
 
             <TabsContent value="comments" className="mt-0 space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {isLoading ? (
-                  <div className="flex justify-center py-4">
+                  <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : comments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Нет комментариев</p>
+                  <p className="text-sm text-muted-foreground py-8 text-center">Нет комментариев</p>
                 ) : (
                   comments.map((comment) => (
-                    <div key={comment.id} className="p-3 rounded border space-y-1">
+                    <div key={comment.id} className="p-3 rounded-lg border space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{comment.author?.name || 'Неизвестно'}</span>
                         <span className="text-xs text-muted-foreground">
@@ -596,14 +605,15 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                 )}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2 border-t">
                 <Textarea
                   placeholder="Написать комментарий..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   rows={2}
+                  className="flex-1"
                 />
-                <Button onClick={handleAddComment} disabled={!newComment.trim()}>
+                <Button onClick={handleAddComment} disabled={!newComment.trim()} className="h-auto">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
@@ -611,14 +621,14 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
 
             <TabsContent value="history" className="mt-0 space-y-2">
               {isLoading ? (
-                <div className="flex justify-center py-4">
+                <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : history.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет истории</p>
+                <p className="text-sm text-muted-foreground py-8 text-center">Нет истории</p>
               ) : (
                 history.map((entry) => (
-                  <div key={entry.id} className="p-3 rounded border space-y-1">
+                  <div key={entry.id} className="p-3 rounded-lg border space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{entry.action}</span>
                       <span className="text-xs text-muted-foreground">
@@ -629,7 +639,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
                       {entry.author?.name || 'Неизвестно'}
                     </div>
                     {(entry.old_value || entry.new_value) && (
-                      <div className="text-sm">
+                      <div className="text-sm pt-1">
                         {entry.old_value && <span className="line-through text-muted-foreground">{entry.old_value}</span>}
                         {entry.old_value && entry.new_value && <span className="mx-2">→</span>}
                         {entry.new_value && <span>{entry.new_value}</span>}
@@ -642,7 +652,7 @@ export default function TaskModal({ task, isOpen, onClose, users, onTaskUpdate, 
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="flex justify-between">
+        <DialogFooter className="flex justify-between pt-4 border-t">
           <div>
             {isAdmin && (
               <Button variant="destructive" onClick={handleDelete}>
