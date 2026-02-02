@@ -87,6 +87,11 @@ interface TaskData {
   updated_at: string;
 }
 
+interface SyncRequest {
+  task: TaskData;
+  action: "create" | "update";
+}
+
 const PRIORITY_LABELS: Record<number, string> = {
   1: "Высокий",
   2: "Средний",
@@ -107,7 +112,20 @@ serve(async (req) => {
   }
 
   try {
-    const task: TaskData = await req.json();
+    const body = await req.json();
+    
+    // Support both old format (just task) and new format (task + action)
+    let task: TaskData;
+    let action: "create" | "update";
+    
+    if (body.task) {
+      task = body.task;
+      action = body.action || "create";
+    } else {
+      // Backward compatibility: old format without wrapper
+      task = body;
+      action = "create";
+    }
 
     const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
     const sheetId = Deno.env.get("GOOGLE_SHEET_ID");
@@ -141,7 +159,52 @@ serve(async (req) => {
       new Date(task.updated_at).toLocaleString("ru-RU"),
     ];
 
-    // Append row to the sheet
+    if (action === "update") {
+      // Find existing row by task ID and update it
+      const findUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A:A`;
+      const findResponse = await fetch(findUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (findResponse.ok) {
+        const findData = await findResponse.json();
+        const values = findData.values || [];
+        let rowIndex = -1;
+
+        for (let i = 0; i < values.length; i++) {
+          if (values[i][0] === task.id) {
+            rowIndex = i + 1; // Sheets are 1-indexed
+            break;
+          }
+        }
+
+        if (rowIndex > 0) {
+          // Update existing row
+          const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A${rowIndex}:I${rowIndex}?valueInputOption=USER_ENTERED`;
+          const updateResponse = await fetch(updateUrl, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ values: [rowData] }),
+          });
+
+          if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            throw new Error(`Failed to update row: ${errorText}`);
+          }
+
+          return new Response(
+            JSON.stringify({ success: true, sheet: sheetName, action: "updated", row: rowIndex }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      // If row not found, fall through to append (create)
+    }
+
+    // Append row to the sheet (for create or if update didn't find existing row)
     const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A:I:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
     const appendResponse = await fetch(appendUrl, {
@@ -223,7 +286,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, sheet: sheetName }),
+      JSON.stringify({ success: true, sheet: sheetName, action: "created" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

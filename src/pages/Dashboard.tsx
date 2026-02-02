@@ -146,7 +146,7 @@ export default function Dashboard() {
     return result;
   }, [tasks, activeTab, user, searchQuery, selectedOwner, selectedStatus, selectedPriority]);
 
-  const syncTaskToSheets = async (task: Task) => {
+  const syncTaskToSheets = async (task: Task, action: "create" | "update" = "create") => {
     try {
       const syncUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sheets`;
 
@@ -157,17 +157,20 @@ export default function Dashboard() {
           "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          status: task.status,
-          priority: task.priority,
-          scope: task.scope,
-          author_name: task.author?.name || "",
-          owner_name: task.owner?.name || null,
-          owner_telegram_id: task.owner?.telegram_id || null,
-          created_at: task.created_at,
-          updated_at: task.updated_at,
+          action,
+          task: {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            scope: task.scope,
+            author_name: task.author?.name || "",
+            owner_name: task.owner?.name || null,
+            owner_telegram_id: task.owner?.telegram_id || null,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+          },
         }),
       });
 
@@ -287,15 +290,42 @@ export default function Dashboard() {
         author_id: user!.id,
       });
 
-      const { data: updatedData } = await supabase.from("tasks").select("updated_at").eq("id", taskId).single();
+      const { data: updatedData } = await supabase
+        .from("tasks")
+        .select("*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)")
+        .eq("id", taskId)
+        .single();
+
+      const updatedTask: Task = {
+        ...task,
+        status: newStatus,
+        updated_at: updatedData?.updated_at || task.updated_at,
+        owner: updatedData?.owner ? {
+          id: updatedData.owner.id,
+          telegram_id: updatedData.owner.telegram_id,
+          name: updatedData.owner.name,
+          active: updatedData.owner.active,
+          role: "user" as const,
+        } : task.owner,
+        author: updatedData?.author ? {
+          id: updatedData.author.id,
+          telegram_id: updatedData.author.telegram_id,
+          name: updatedData.author.name,
+          active: updatedData.author.active,
+          role: "user" as const,
+        } : task.author,
+      };
 
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus, updated_at: updatedData?.updated_at || t.updated_at } : t,
+          t.id === taskId ? updatedTask : t,
         ),
       );
 
       toast.success("Статус обновлён");
+
+      // Sync to Google Sheets
+      syncTaskToSheets(updatedTask, "update");
     } catch (error) {
       console.error("Error updating status:", error);
       toast.error("Ошибка обновления");
@@ -309,6 +339,8 @@ export default function Dashboard() {
 
   const handleTaskUpdate = (updatedTask: Task) => {
     setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
+    // Sync to Google Sheets
+    syncTaskToSheets(updatedTask, "update");
   };
 
   const handleTaskDelete = (taskId: string) => {
