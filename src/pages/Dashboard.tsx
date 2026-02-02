@@ -21,27 +21,19 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
 
-  // tabs
   const [activeTab, setActiveTab] = useState<"all" | "my">("all");
-
-  // filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOwner, setSelectedOwner] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedPriority, setSelectedPriority] = useState("all");
 
-  // modal
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // redirect if not logged
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
+    if (!authLoading && !user) navigate("/login");
   }, [user, authLoading, navigate]);
 
-  // load data
   useEffect(() => {
     if (user) loadData();
   }, [user]);
@@ -60,7 +52,7 @@ export default function Dashboard() {
       if (tasksRes.error) throw tasksRes.error;
       if (usersRes.error) throw usersRes.error;
 
-      const mappedTasks: Task[] = (tasksRes.data || []).map((t) => ({
+      const mappedTasks: Task[] = (tasksRes.data || []).map((t: any) => ({
         id: t.id,
         title: t.title,
         description: t.description,
@@ -76,7 +68,7 @@ export default function Dashboard() {
               telegram_id: t.owner.telegram_id,
               name: t.owner.name,
               active: t.owner.active,
-              role: "user",
+              role: "user" as const,
             }
           : null,
         author: t.author
@@ -85,48 +77,47 @@ export default function Dashboard() {
               telegram_id: t.author.telegram_id,
               name: t.author.name,
               active: t.author.active,
-              role: "user",
+              role: "user" as const,
             }
           : null,
       }));
 
-      const mappedUsers: User[] = (usersRes.data || []).map((u) => ({
+      const mappedUsers: User[] = (usersRes.data || []).map((u: any) => ({
         id: u.id,
         telegram_id: u.telegram_id,
         name: u.name,
         active: u.active,
-        role: u.user_roles?.[0]?.role || "user",
+        role: (u.user_roles && u.user_roles[0]?.role) || "user",
       }));
 
       setTasks(mappedTasks);
       setUsers(mappedUsers);
     } catch (error) {
-      console.error(error);
+      console.error("Error loading data:", error);
       toast.error("Ошибка загрузки данных");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // filtering
   const filteredTasks = useMemo(() => {
-    let result = [...tasks];
+    let result = tasks;
 
-    // My tasks
+    // МОИ ЗАДАЧИ — показываем если я автор ИЛИ я исполнитель
     if (activeTab === "my" && user) {
       result = result.filter((t) => t.owner_id === user.id || t.author_id === user.id);
     }
 
-    // Search
-    if (searchQuery) {
+    // Поиск: title/description/author/owner
+    if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          (t.description || "").toLowerCase().includes(q) ||
-          t.author?.name?.toLowerCase().includes(q) ||
-          t.owner?.name?.toLowerCase().includes(q),
-      );
+      result = result.filter((t) => {
+        const title = (t.title || "").toLowerCase();
+        const desc = (t.description || "").toLowerCase();
+        const author = (t.author?.name || "").toLowerCase();
+        const owner = (t.owner?.name || "").toLowerCase();
+        return title.includes(q) || desc.includes(q) || author.includes(q) || owner.includes(q);
+      });
     }
 
     if (selectedOwner !== "all") {
@@ -144,45 +135,88 @@ export default function Dashboard() {
     return result;
   }, [tasks, activeTab, user, searchQuery, selectedOwner, selectedStatus, selectedPriority]);
 
-  // create task
   const handleCreateTask = async (title: string, isUrgent: boolean) => {
     if (!user) return;
 
     setIsCreating(true);
     try {
+      // ВАЖНО: status должен быть из enum в БД
       const { data, error } = await supabase
         .from("tasks")
         .insert({
           title,
           priority: isUrgent ? "urgent" : "normal",
           author_id: user.id,
-          status: "ideas",
+          status: "backlog", // НЕ 'ideas'
         })
-        .select()
+        .select("*, owner:profiles!tasks_owner_id_fkey(*), author:profiles!tasks_author_id_fkey(*)")
         .single();
 
       if (error) throw error;
 
-      setTasks((prev) => [data as Task, ...prev]);
+      await supabase.from("task_history").insert({
+        task_id: data.id,
+        action: "Задача создана",
+        old_value: null,
+        new_value: title,
+        author_id: user.id,
+      });
+
+      const newTask: Task = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        status: data.status as TaskStatus,
+        priority: data.priority as "normal" | "urgent",
+        owner_id: data.owner_id,
+        author_id: data.author_id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        owner: data.owner
+          ? {
+              id: data.owner.id,
+              telegram_id: data.owner.telegram_id,
+              name: data.owner.name,
+              active: data.owner.active,
+              role: "user" as const,
+            }
+          : null,
+        author: data.author
+          ? {
+              id: data.author.id,
+              telegram_id: data.author.telegram_id,
+              name: data.author.name,
+              active: data.author.active,
+              role: "user" as const,
+            }
+          : null,
+      };
+
+      setTasks((prev) => [newTask, ...prev]);
       toast.success("Задача создана");
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error("Error creating task:", error);
       toast.error("Ошибка создания задачи");
     } finally {
       setIsCreating(false);
     }
   };
 
-  // change status
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
     const isAdmin = user?.role === "admin";
     const isAuthor = task.author_id === user?.id;
+    const canEdit = isAdmin || isAuthor;
 
-    if (!isAdmin && !isAuthor) {
-      toast.error("Нет прав");
+    if (!canEdit) {
+      toast.error("Нет прав на изменение этой задачи");
+      return;
+    }
+
+    if (newStatus === "done" && !isAdmin) {
+      toast.error("Только администратор может завершить задачу");
       return;
     }
 
@@ -191,34 +225,47 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+      const { STATUS_LABELS } = await import("@/types");
+      await supabase.from("task_history").insert({
+        task_id: taskId,
+        action: "Изменён статус",
+        old_value: STATUS_LABELS[task.status],
+        new_value: STATUS_LABELS[newStatus],
+        author_id: user!.id,
+      });
+
+      const { data: updatedData } = await supabase.from("tasks").select("updated_at").eq("id", taskId).single();
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus, updated_at: updatedData?.updated_at || t.updated_at } : t,
+        ),
+      );
 
       toast.success("Статус обновлён");
-    } catch (err) {
-      console.error(err);
-      toast.error("Ошибка обновления");
+    } catch (error) {
+      console.error("Error updating status:", error);
+      toast.error("Ошибка обновления статуса");
     }
   };
 
-  // modal
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
     setIsModalOpen(true);
   };
 
-  const handleTaskUpdate = (task: Task) => {
-    setTasks(tasks.map((t) => (t.id === task.id ? task : t)));
+  const handleTaskUpdate = (updatedTask: Task) => {
+    setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
   };
 
-  const handleTaskDelete = (id: string) => {
-    setTasks(tasks.filter((t) => t.id !== id));
+  const handleTaskDelete = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
-  // loaders
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -226,7 +273,7 @@ export default function Dashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
 
       <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
@@ -253,8 +300,8 @@ export default function Dashboard() {
         task={selectedTask}
         isOpen={isModalOpen}
         onClose={() => {
-          setSelectedTask(null);
           setIsModalOpen(false);
+          setSelectedTask(null);
         }}
         users={users}
         onTaskUpdate={handleTaskUpdate}
