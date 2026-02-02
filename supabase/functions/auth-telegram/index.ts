@@ -28,7 +28,7 @@ async function getAccessToken(serviceAccountKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: keyData.client_email,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
@@ -211,6 +211,60 @@ serve(async (req) => {
         user_id: profile.id,
         role: userData.role,
       });
+    }
+
+    // Create personal sheet U_<telegram_id> if it doesn't exist
+    try {
+      const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
+      const sheetId = Deno.env.get("GOOGLE_SHEET_ID")!;
+      const accessToken = await getAccessToken(serviceAccountKey);
+      const sheetName = `U_${userData.telegram_id}`;
+
+      // Check if sheet exists by trying to get it
+      const checkResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A1`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!checkResponse.ok && checkResponse.status === 400) {
+        // Sheet doesn't exist, create it
+        const createResponse = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              requests: [{ addSheet: { properties: { title: sheetName } } }],
+            }),
+          }
+        );
+
+        if (createResponse.ok) {
+          // Add header row
+          await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!A1:I1?valueInputOption=USER_ENTERED`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                values: [["ID", "Название", "Описание", "Статус", "Приоритет", "Автор", "Исполнитель", "Создано", "Обновлено"]],
+              }),
+            }
+          );
+          console.log(`Created sheet ${sheetName} for user ${userData.name}`);
+        }
+      }
+    } catch (sheetError) {
+      console.error("Error creating personal sheet:", sheetError);
+      // Don't fail login if sheet creation fails
     }
 
     return new Response(
