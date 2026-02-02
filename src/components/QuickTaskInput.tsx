@@ -16,7 +16,7 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isCreating) return;
 
     onCreateTask(input.trim());
     setInput('');
@@ -24,7 +24,7 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
 
   const handleVoiceInput = async () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error('Голосовой ввод не поддерживается в вашем браузере');
+      toast.error('Голосовой ввод не поддерживается');
       return;
     }
 
@@ -53,15 +53,15 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       if (transcript.trim()) {
-        // Auto-create task after voice recognition
+        // Auto-create task immediately after voice recognition
         onCreateTask(transcript.trim());
-        toast.success('Задача создана голосом');
+        toast.success('Задача создана');
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = () => {
       setIsRecording(false);
-      toast.error('Ошибка распознавания речи');
+      toast.error('Ошибка распознавания');
     };
 
     recognition.start();
@@ -70,32 +70,39 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
   return (
     <form onSubmit={handleSubmit} className="flex gap-2">
       <Input
-        placeholder="Введите название задачи..."
+        placeholder="Новая задача..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        className="flex-1"
+        className="flex-1 h-11"
         disabled={isCreating}
       />
       <Button
         type="button"
-        variant="outline"
+        variant={isRecording ? 'destructive' : 'outline'}
         size="icon"
+        className="h-11 w-11 flex-shrink-0"
         onClick={handleVoiceInput}
         disabled={isCreating}
       >
         {isRecording ? (
-          <MicOff className="h-4 w-4 text-destructive" />
+          <MicOff className="h-5 w-5" />
         ) : (
-          <Mic className="h-4 w-4" />
+          <Mic className="h-5 w-5" />
         )}
       </Button>
-      <Button type="submit" disabled={isCreating || !input.trim()}>
+      <Button 
+        type="submit" 
+        disabled={isCreating || !input.trim()}
+        className="h-11 px-4 flex-shrink-0"
+      >
         {isCreating ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
-          <Plus className="h-4 w-4 mr-2" />
+          <>
+            <Plus className="h-5 w-5 md:mr-1" />
+            <span className="hidden md:inline">Создать</span>
+          </>
         )}
-        Создать
       </Button>
     </form>
   );
