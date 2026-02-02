@@ -177,6 +177,26 @@ export default function Dashboard() {
         author_id: user.id,
       });
 
+      // Sync to Google Sheets (non-blocking)
+      supabase.functions.invoke("sync-sheets", {
+        body: {
+          action: "sync_task",
+          task: {
+            id: data.id,
+            title: data.title,
+            description: data.description || "",
+            status: data.status,
+            priority: data.priority,
+            scope: data.scope,
+            author_name: data.author?.name || user.name,
+            owner_name: data.owner?.name || user.name,
+            owner_telegram_id: data.owner?.telegram_id || user.telegram_id,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+          },
+        },
+      }).catch((err) => console.error("Sheets sync error:", err));
+
       const newTask: Task = {
         id: data.id,
         title: data.title,
