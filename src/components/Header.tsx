@@ -75,21 +75,21 @@ export default function Header({ activeTab, onTabChange }: HeaderProps) {
         </div>
 
         {/* Mobile layout */}
-        <div className="md:hidden space-y-3">
+        <div className="md:hidden space-y-2.5">
           <div className="flex items-center justify-between">
-            <h1 className="text-sm font-bold text-foreground">
-              Цифровизация AkTrans
+            <h1 className="text-sm font-bold text-foreground truncate max-w-[140px]">
+              AkTrans
             </h1>
-            <div className="flex items-center gap-2">
-              <Badge variant={user?.role === 'admin' ? 'default' : 'secondary'} className="text-xs">
+            <div className="flex items-center gap-1.5">
+              <Badge variant={user?.role === 'admin' ? 'default' : 'secondary'} className="text-[11px] px-2 py-0.5 max-w-[100px] truncate">
                 {user?.name}
               </Badge>
               {user?.role === 'admin' && (
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleOpenSheet}>
+                <Button variant="outline" size="icon" className="h-10 w-10" onClick={handleOpenSheet}>
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={logout}>
+              <Button variant="ghost" size="icon" className="h-10 w-10" onClick={logout}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -99,17 +99,17 @@ export default function Header({ activeTab, onTabChange }: HeaderProps) {
           <div className="flex bg-muted rounded-lg p-1">
             <button
               onClick={() => onTabChange('common')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
                 activeTab === 'common'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'
               }`}
             >
-              Общие задачи
+              Общие
             </button>
             <button
               onClick={() => onTabChange('personal')}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-colors ${
                 activeTab === 'personal'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'

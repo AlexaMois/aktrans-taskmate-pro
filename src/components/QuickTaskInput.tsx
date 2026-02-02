@@ -73,14 +73,14 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
         placeholder="Новая задача..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        className="flex-1 h-11"
+        className="flex-1 h-12 md:h-11 text-base md:text-sm"
         disabled={isCreating}
       />
       <Button
         type="button"
         variant={isRecording ? 'destructive' : 'outline'}
         size="icon"
-        className="h-11 w-11 flex-shrink-0"
+        className="h-12 w-12 md:h-11 md:w-11 flex-shrink-0"
         onClick={handleVoiceInput}
         disabled={isCreating}
       >
@@ -93,7 +93,7 @@ export default function QuickTaskInput({ onCreateTask, isCreating }: QuickTaskIn
       <Button 
         type="submit" 
         disabled={isCreating || !input.trim()}
-        className="h-11 px-4 flex-shrink-0"
+        className="h-12 md:h-11 px-3 md:px-4 flex-shrink-0"
       >
         {isCreating ? (
           <Loader2 className="h-5 w-5 animate-spin" />

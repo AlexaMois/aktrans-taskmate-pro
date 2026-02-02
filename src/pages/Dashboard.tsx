@@ -361,7 +361,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="flex-1 container mx-auto px-4 py-4 space-y-4">
+      <main className="flex-1 container mx-auto px-3 py-3 space-y-3 md:px-4 md:py-4 md:space-y-4">
         {user.role === "admin" && <StatsCards tasks={tasks} />}
 
         <TaskFilters
