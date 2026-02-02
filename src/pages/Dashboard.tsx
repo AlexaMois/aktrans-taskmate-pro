@@ -58,7 +58,7 @@ export default function Dashboard() {
         description: t.description,
         status: t.status as TaskStatus,
         priority: t.priority as number,
-        scope: t.scope as TaskScope,
+        scope: (t.scope || 'common') as TaskScope,
         owner_id: t.owner_id,
         author_id: t.author_id,
         created_at: t.created_at,
@@ -111,7 +111,7 @@ export default function Dashboard() {
       result = result.filter((t) => t.scope === "personal" && t.owner_id === user.id);
     }
 
-    // Search: title/description/author/owner
+    // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((t) => {
@@ -146,13 +146,12 @@ export default function Dashboard() {
       const scope: TaskScope = activeTab;
       const insertData: any = {
         title,
-        priority: 2, // Default medium priority
+        priority: 2,
         author_id: user.id,
         status: "ideas",
         scope,
       };
 
-      // For personal tasks, set owner_id to current user
       if (scope === "personal") {
         insertData.owner_id = user.id;
       }
@@ -223,12 +222,12 @@ export default function Dashboard() {
     const canEdit = isAdmin || isAuthor;
 
     if (!canEdit) {
-      toast.error("Нет прав на изменение этой задачи");
+      toast.error("Нет прав на изменение");
       return;
     }
 
     if (newStatus === "done" && !isAdmin) {
-      toast.error("Только администратор может завершить задачу");
+      toast.error("Только админ может завершить задачу");
       return;
     }
 
@@ -257,7 +256,7 @@ export default function Dashboard() {
       toast.success("Статус обновлён");
     } catch (error) {
       console.error("Error updating status:", error);
-      toast.error("Ошибка обновления статуса");
+      toast.error("Ошибка обновления");
     }
   };
 
@@ -288,7 +287,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+      <main className="flex-1 container mx-auto px-4 py-4 space-y-4">
         {user.role === "admin" && <StatsCards tasks={tasks} />}
 
         <TaskFilters
