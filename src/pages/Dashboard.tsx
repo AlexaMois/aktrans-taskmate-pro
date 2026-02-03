@@ -183,12 +183,24 @@ export default function Dashboard() {
     }
   };
 
+  // Escape HTML special characters for safe Telegram HTML messages
+  const escapeHtml = (text: string | null | undefined): string => {
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  };
+
   const sendPersonalTaskNotification = async (task: Task) => {
-    if (task.scope !== "personal" || !task.owner?.telegram_id) return;
+    if (task.scope !== "personal" || !task.owner?.telegram_id || !user) return;
 
     try {
       const notifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-telegram-notification`;
-      const text = `✅ <b>Создана личная задача</b>\n\n📝 ${task.title}\n\nЗадача добавлена в ваш личный список.`;
+      // Escape user-provided content to prevent HTML injection
+      const safeTitle = escapeHtml(task.title);
+      const text = `✅ <b>Создана личная задача</b>\n\n📝 ${safeTitle}\n\nЗадача добавлена в ваш личный список.`;
 
       await fetch(notifyUrl, {
         method: "POST",
@@ -199,6 +211,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           telegram_id: task.owner.telegram_id,
           text,
+          user_id: user.id, // Pass user_id for authorization
         }),
       });
     } catch (error) {

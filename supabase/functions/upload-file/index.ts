@@ -1,9 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { sanitizeFilename, isValidUUID } from "../_shared/validation.ts";
+import { verifyUser, verifyTaskAccess } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Maximum file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// Allowed file types
+const ALLOWED_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain', 'text/csv',
+];
 
 async function getAccessToken(serviceAccountKey: string): Promise<string> {
   const keyData = JSON.parse(serviceAccountKey);
@@ -82,13 +96,60 @@ serve(async (req) => {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const taskId = formData.get("task_id") as string;
-    const fileName = formData.get("file_name") as string || file.name;
+    const fileName = formData.get("file_name") as string || file?.name;
+    const userId = formData.get("user_id") as string;
 
+    // Validate required fields
     if (!file) {
       return new Response(
         JSON.stringify({ error: "File is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (!taskId || !isValidUUID(taskId)) {
+      return new Response(
+        JSON.stringify({ error: "Valid task_id is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return new Response(
+        JSON.stringify({ error: `File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate file type (warn but allow - some valid files may have incorrect MIME types)
+    if (file.type && !ALLOWED_TYPES.includes(file.type)) {
+      console.warn(`Unusual file type uploaded: ${file.type}`);
+    }
+
+    // Verify user authorization if user_id provided
+    if (userId) {
+      const userVerification = await verifyUser(userId);
+      if (!userVerification.valid) {
+        return new Response(
+          JSON.stringify({ error: userVerification.error }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify task access
+      const taskAccess = await verifyTaskAccess(userId, taskId);
+      if (!taskAccess.hasAccess) {
+        // Check if user is admin
+        const { verifyUserRole } = await import("../_shared/auth.ts");
+        const isAdmin = await verifyUserRole(userId, 'admin');
+        if (!isAdmin) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: No access to this task" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
     }
 
     const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
@@ -100,9 +161,12 @@ serve(async (req) => {
 
     const accessToken = await getAccessToken(serviceAccountKey);
 
+    // Sanitize filename to prevent path traversal and invalid characters
+    const safeFileName = sanitizeFilename(fileName);
+
     // Create file metadata
     const metadata = {
-      name: `${taskId}_${Date.now()}_${fileName}`,
+      name: `${taskId}_${Date.now()}_${safeFileName}`,
       parents: [folderId],
     };
 
@@ -182,7 +246,7 @@ serve(async (req) => {
         fileId: uploadResult.id,
         url: uploadResult.webViewLink,
         downloadUrl: uploadResult.webContentLink,
-        name: fileName,
+        name: safeFileName,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

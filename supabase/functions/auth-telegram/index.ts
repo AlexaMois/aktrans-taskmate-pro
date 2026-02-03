@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isValidTelegramId } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,6 +145,7 @@ serve(async (req) => {
   try {
     const { telegram_id } = await req.json();
 
+    // Validate telegram_id is provided
     if (!telegram_id) {
       return new Response(
         JSON.stringify({ error: "Telegram ID is required" }),
@@ -151,8 +153,17 @@ serve(async (req) => {
       );
     }
 
+    // Validate telegram_id format
+    const telegramIdStr = telegram_id.toString().trim();
+    if (!isValidTelegramId(telegramIdStr)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid Telegram ID format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get user from Google Sheet
-    const userData = await getUserFromGoogleSheet(telegram_id.toString().trim());
+    const userData = await getUserFromGoogleSheet(telegramIdStr);
 
     if (!userData) {
       return new Response(
