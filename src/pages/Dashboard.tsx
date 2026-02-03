@@ -7,7 +7,7 @@ import TaskFilters from "@/components/TaskFilters";
 import QuickTaskInput from "@/components/QuickTaskInput";
 import KanbanBoard from "@/components/KanbanBoard";
 import TaskModal from "@/components/TaskModal";
-import { Task, User, TaskStatus, TaskScope } from "@/types";
+import { Task, User, TaskStatus, TaskScope, STATUS_LABELS } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -329,7 +329,6 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      const { STATUS_LABELS } = await import("@/types");
       await supabase.from("task_history").insert({
         task_id: taskId,
         action: "Изменён статус",
