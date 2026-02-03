@@ -22,6 +22,15 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TaskScope>("common");
+
+  // Reset all filters when switching tabs
+  const handleTabChange = (tab: TaskScope) => {
+    setActiveTab(tab);
+    setSearchQuery("");
+    setSelectedOwner("all");
+    setSelectedStatus("all");
+    setSelectedPriority("all");
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOwner, setSelectedOwner] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -398,7 +407,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header activeTab={activeTab} onTabChange={setActiveTab} />
+      <Header activeTab={activeTab} onTabChange={handleTabChange} />
 
       <main className="flex-1 container mx-auto px-3 py-3 space-y-3 md:px-4 md:py-4 md:space-y-4">
         {user.role === "admin" && <StatsCards tasks={filteredTasks} />}
