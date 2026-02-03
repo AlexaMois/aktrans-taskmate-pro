@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { sanitizeForSheets, isValidUUID, isValidTelegramId, validateTextInput } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,6 +107,15 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Завершено",
 };
 
+// Validate status value
+const VALID_STATUSES = ["ideas", "planned", "in_progress", "review", "done"];
+
+// Validate priority value
+const VALID_PRIORITIES = [1, 2, 3];
+
+// Validate scope value
+const VALID_SCOPES = ["common", "personal"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -127,6 +137,63 @@ serve(async (req) => {
       action = "create";
     }
 
+    // Validate task ID
+    if (!task.id || !isValidUUID(task.id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or missing task ID" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate and sanitize title
+    const titleValidation = validateTextInput(task.title, 500);
+    if (!titleValidation.valid) {
+      return new Response(
+        JSON.stringify({ error: `Invalid title: ${titleValidation.error}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate description length if provided
+    if (task.description && task.description.length > 5000) {
+      return new Response(
+        JSON.stringify({ error: "Description exceeds maximum length of 5000 characters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate status
+    if (!VALID_STATUSES.includes(task.status)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid status: ${task.status}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate priority
+    if (!VALID_PRIORITIES.includes(task.priority)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid priority: ${task.priority}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate scope
+    if (!VALID_SCOPES.includes(task.scope)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid scope: ${task.scope}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate telegram_id format if provided
+    if (task.owner_telegram_id && !isValidTelegramId(task.owner_telegram_id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid owner_telegram_id format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
     const sheetId = Deno.env.get("GOOGLE_SHEET_ID");
 
@@ -146,15 +213,15 @@ serve(async (req) => {
       throw new Error("Invalid scope or missing owner_telegram_id for personal task");
     }
 
-    // Format row data matching docs/GOOGLE_SHEETS_STRUCTURE.md
+    // Format row data with sanitization to prevent formula injection
     const rowData = [
       task.id,
-      task.title,
-      task.description || "",
+      sanitizeForSheets(task.title),
+      sanitizeForSheets(task.description),
       STATUS_LABELS[task.status] || task.status,
       PRIORITY_LABELS[task.priority] || String(task.priority),
-      task.author_name,
-      task.owner_name || "",
+      sanitizeForSheets(task.author_name),
+      sanitizeForSheets(task.owner_name),
       new Date(task.created_at).toLocaleString("ru-RU"),
       new Date(task.updated_at).toLocaleString("ru-RU"),
     ];

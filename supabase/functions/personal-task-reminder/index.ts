@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { escapeHtml } from "../_shared/validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,8 +63,11 @@ serve(async (req) => {
 
       const hoursAgo = Math.floor((Date.now() - new Date(task.created_at).getTime()) / (1000 * 60 * 60));
       
+      // Escape task title for HTML to prevent injection
+      const safeTitle = escapeHtml(task.title);
+      
       const text = `⏰ <b>Напоминание о личной задаче</b>\n\n` +
-        `📝 ${task.title}\n` +
+        `📝 ${safeTitle}\n` +
         `⏱ Создана ${hoursAgo} ч. назад\n\n` +
         `Не забудьте выполнить задачу!`;
 
