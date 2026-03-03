@@ -3,7 +3,7 @@ import { getGoogleAccessToken } from "../_shared/googleAuth.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID")!;
-const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const PERPLEXITY_KEY = Deno.env.get("PERPLEXITY_API_KEY")!;
 const SHEET_NAME = "Meetings";
 
 // ─── Telegram helpers ───────────────────────────────────────────────────────
@@ -132,15 +132,12 @@ async function getTodayMeetings(
 
 async function getSummary(texts: string[]): Promise<string> {
   const combined = texts.join("\n\n");
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
+    const res = await fetch("https://api.perplexity.ai/chat/completions", {    method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json",
+      Authorization: `Bearer ${PERPLEXITY_KEY}`,      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
+      model: "sonar",      messages: [
         {
           role: "system",
           content: "Ты — личный ассистент руководителя. Отвечай на русском языке.",
