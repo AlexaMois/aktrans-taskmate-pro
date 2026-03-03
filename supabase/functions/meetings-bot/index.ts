@@ -169,8 +169,8 @@ serve(async (req) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: webhookUrl })
     });
-    const d = await r.json();
-    return new Response(JSON.stringify(d), { headers: { "Content-Type": "application/json" } });
+    const d = await r.text();  }
+    return new Response(d, { headers: { "Content-Type": "text/plain" } });
   }
   try {
     const update = await req.json();
