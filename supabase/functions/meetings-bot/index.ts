@@ -169,7 +169,7 @@ serve(async (req) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: webhookUrl })
     });
-    const d = await r.text();  }
+    const d = await r.text();  
     return new Response(d, { headers: { "Content-Type": "text/plain" } });
   }
   try {
