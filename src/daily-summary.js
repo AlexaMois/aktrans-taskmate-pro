@@ -1,4 +1,3 @@
-const { google } = require('googleapis');
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client
