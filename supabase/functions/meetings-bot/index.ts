@@ -160,6 +160,18 @@ async function getSummary(texts: string[]): Promise<string> {
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req) => {
+    // Setup webhook
+  const url = new URL(req.url);
+  if (url.pathname.endsWith("/setup")) {
+    const webhookUrl = `https://hvsighjpcycwoqpmuvga.supabase.co/functions/v1/meetings-bot`;
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: webhookUrl })
+    });
+    const d = await r.json();
+    return new Response(JSON.stringify(d), { headers: { "Content-Type": "application/json" } });
+  }
   try {
     const update = await req.json();
     const message = update?.message;
