@@ -6,7 +6,15 @@ const SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID")!;
 const PERPLEXITY_KEY = Deno.env.get("PERPLEXITY_API_KEY")!;
 const SHEET_NAME = "Meetings";
 
-// ─── Telegram helpers ───────────────────────────────────────────────────────
+// ─── Telegram helpers ────────────────────────────────────────────────────────
+console.log("BOT_TOKEN length:", BOT_TOKEN?.length, "SHEET_ID:", SHEET_ID?.length);
+
+// Auto-set webhook on boot
+fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({url: 'https://hvsighjpcycwoqpmuvga.supabase.co/functions/v1/meetings-bot'})
+}).then(r => r.text()).then(t => console.log('webhook:', t));
 
 async function sendMessage(chatId: number, text: string): Promise<void> {
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -25,237 +33,139 @@ async function getFileUrl(fileId: string): Promise<string> {
   return `https://api.telegram.org/file/bot${BOT_TOKEN}/${data.result.file_path}`;
 }
 
-// ─── File text extraction ────────────────────────────────────────────────────
-
+// ─── File text extraction ──────────────────────────────────────────────────
 async function extractText(fileId: string, fileName: string): Promise<string> {
   const url = await getFileUrl(fileId);
   const res = await fetch(url);
-  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-  if (ext === "txt") {
-    return await res.text();
-  }
-
-  // For docx/pdf — read as text (works for basic docx/txt content)
-  // Full docx/pdf parsing requires external service; txt is recommended
-  const buffer = await res.arrayBuffer();
-  const decoder = new TextDecoder("utf-8", { fatal: false });
-  const raw = decoder.decode(buffer);
-
-  // Strip binary garbage — keep only printable chars
-  return raw.replace(/[^\x20-\x7E\u0400-\u04FF\n\r\t]/g, " ").replace(/\s{3,}/g, "\n").trim();
+  const buf = await res.arrayBuffer();
+  const text = new TextDecoder("utf-8").decode(buf);
+  return text.slice(0, 15000); // limit
 }
 
-// ─── Google Sheets helpers ───────────────────────────────────────────────────
-
-async function appendMeeting(
-  accessToken: string,
-  date: string,
-  telegramId: string,
-  fileName: string,
-  text: string
-): Promise<void> {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}!A:D:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+// ─── Google Sheets ────────────────────────────────────────────────────────
+async function appendRow(values: string[]): Promise<void> {
+  const token = await getGoogleAccessToken();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}!A1:append?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ values: [[date, telegramId, fileName, text]] }),
+    body: JSON.stringify({ values: [values] }),
   });
-  if (!res.ok) {
-    const err = await res.text();
-    // Sheet might not exist yet — create it then retry
-    if (res.status === 400) {
-      await createMeetingsSheet(accessToken);
-      await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ values: [[date, telegramId, fileName, text]] }),
-      });
-    } else {
-      throw new Error(`Sheets append error: ${err}`);
-    }
-  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Sheets error: ${JSON.stringify(data)}`);
+  console.log("Sheets append ok:", JSON.stringify(data).slice(0, 200));
 }
 
-async function createMeetingsSheet(accessToken: string): Promise<void> {
-  // Create sheet
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+async function getRows(): Promise<string[][]> {
+  const token = await getGoogleAccessToken();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}!A2:D`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Sheets read error: ${JSON.stringify(data)}`);
+  return data.values ?? [];
+}
+
+// ─── Perplexity summary ───────────────────────────────────────────────────
+async function getSummary(texts: string[]): Promise<string> {
+  const combined = texts.join("\n\n---\n\n");
+  const res = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${PERPLEXITY_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      requests: [{ addSheet: { properties: { title: SHEET_NAME } } }],
-    }),
-  });
-  // Add header row
-  await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}!A1:D1?valueInputOption=USER_ENTERED`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ values: [["Date", "Telegram_ID", "Filename", "Text"]] }),
-    }
-  );
-}
-
-async function getTodayMeetings(
-  accessToken: string,
-  telegramId: string
-): Promise<string[]> {
-  const today = new Date().toISOString().split("T")[0];
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}!A:D`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  if (!data.values || data.values.length < 2) return [];
-
-  return data.values
-    .slice(1)
-    .filter((row: string[]) => row[0] === today && row[1] === telegramId)
-    .map((row: string[], i: number) => `=== Совещание ${i + 1} (${row[2]}) ===\n${row[3]}`);
-}
-
-// ─── LLM summary ─────────────────────────────────────────────────────────────
-
-async function getSummary(texts: string[]): Promise<string> {
-  const combined = texts.join("\n\n");
-    const res = await fetch("https://api.perplexity.ai/chat/completions", {    method: "POST",
-    headers: {
-      Authorization: `Bearer ${PERPLEXITY_KEY}`,      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "sonar",      messages: [
+      model: "sonar",
+      messages: [
         {
           role: "system",
-          content: "Ты — личный ассистент руководителя. Отвечай на русском языке.",
+          content: "Ты аналитик совещаний. Составь краткую сводку за день: ключевые темы, решения, задачи. Отвечай на русском языке.",
         },
         {
           role: "user",
-          content: `Проанализируй стенограммы совещаний за день. Выдай структурированно:\n1. Краткое резюме по каждому совещанию (2-3 строки)\n2. Список задач и договорённостей\n3. Ключевые решения\n4. Открытые вопросы\n\nСтенограммы:\n${combined}`,
+          content: `Вот стенограммы совещаний за сегодня:\n\n${combined}`,
         },
       ],
-      max_tokens: 2000,
+      max_tokens: 1500,
     }),
   });
   const data = await res.json();
-  if (!data.choices?.[0]?.message?.content) {
-    throw new Error(`LLM error: ${JSON.stringify(data)}`);
-  }
+  if (!res.ok) throw new Error(`Perplexity error: ${JSON.stringify(data)}`);
   return data.choices[0].message.content;
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
-
+// ─── Main handler ─────────────────────────────────────────────────────────
 serve(async (req) => {
-    // Setup webhook
-  const url = new URL(req.url);
-    console.log('URL pathname:', url.pathname, 'has setup:', url.searchParams.has('setup'));
-  if (url.pathname.endsWith("/setup")) {
-    const webhookUrl = `https://hvsighjpcycwoqpmuvga.supabase.co/functions/v1/meetings-bot`;
-    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: webhookUrl })
-    });
-    const d = await r.text();  
-    return new Response(d, { headers: { "Content-Type": "text/plain" } });
-  }
   try {
-    const update = await req.json();
-    const message = update?.message;
-    if (!message) return new Response("ok");
+    if (req.method !== "POST") return new Response("ok");
+    const body = await req.json();
+    const msg = body.message;
+    if (!msg) return new Response("ok");
 
-    const chatId: number = message.chat.id;
-    const telegramId: string = message.from.id.toString();
-    const text: string = message.text ?? "";
-    const today = new Date().toISOString().split("T")[0];
+    const chatId: number = msg.chat.id;
+    const text: string = msg.text ?? "";
+    const userId: number = msg.from?.id ?? 0;
 
-    // ── Command: /сводка ──────────────────────────────────────────────────────
-    if (text === "/сводка" || text === "/summary") {
-      const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
-      const accessToken = await getGoogleAccessToken(serviceAccountKey);
-      const meetings = await getTodayMeetings(accessToken, telegramId);
-
-      if (meetings.length === 0) {
-        await sendMessage(chatId, `За сегодня (${today}) стенограмм не найдено.\nОтправь файл (.txt, .docx, .pdf) чтобы начать.`);
-        return new Response("ok");
+    // /сводка command
+    if (text.startsWith("/") && (text.includes("сводка") || text.includes("summary"))) {
+      await sendMessage(chatId, "Собираю сводку за сегодня...");
+      try {
+        const rows = await getRows();
+        const today = new Date().toISOString().slice(0, 10);
+        const todayRows = rows.filter(r => r[0]?.startsWith(today));
+        if (todayRows.length === 0) {
+          await sendMessage(chatId, "Сегодня стенограмм не загружалось.");
+          return new Response("ok");
+        }
+        const texts = todayRows.map(r => `Файл: ${r[2] ?? ""} \n${r[3] ?? ""}`);
+        const summary = await getSummary(texts);
+        await sendMessage(chatId, `📋 Сводка за ${today}:\n\n${summary}`);
+      } catch (e) {
+        console.error("summary error:", e);
+        await sendMessage(chatId, `Ошибка при создании сводки: ${e.message}`);
       }
-
-      await sendMessage(chatId, `⏳ Формирую сводку по ${meetings.length} совещани${meetings.length === 1 ? "ю" : "ям"}...`);
-
-      const summary = await getSummary(meetings);
-      await sendMessage(chatId, `📋 Сводка за ${today}:\n\n${summary}`);
       return new Response("ok");
     }
 
-    // ── Command: /помощь ─────────────────────────────────────────────────────
-    if (text === "/помощь" || text === "/help" || text === "/start") {
-      await sendMessage(
-        chatId,
-        `📎 Привет! Я веду дневник совещаний.\n\nКак пользоваться:\n• Отправь файл (.txt, .docx, .pdf) — сохраню стенограмму\n• Напиши /сводка — получи итоги дня от AI\n• Напиши /помощь — это сообщение\n\nВсе стенограммы сохраняются в Google Sheets.`
-      );
+    // /start command
+    if (text === "/start") {
+      await sendMessage(chatId, "Привет! Отправь мне .txt файл со стенограммой совещания. В конце дня используй /сводка для получения итогов.");
       return new Response("ok");
     }
 
-    // ── Incoming file ─────────────────────────────────────────────────────────
-    if (message.document) {
-      const { file_id, file_name, mime_type } = message.document;
-      const name: string = file_name ?? "transcript.txt";
-      const mime: string = mime_type ?? "text/plain";
+    // Handle document
+    if (msg.document) {
+      const doc = msg.document;
+      const fileName: string = doc.file_name ?? "file";
+      const fileId: string = doc.file_id;
 
-      // Validate file type
-      const allowed = ["text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/pdf", "application/msword"];
-      const ext = name.split(".").pop()?.toLowerCase() ?? "";
-      const allowedExt = ["txt", "docx", "doc", "pdf"];
+      await sendMessage(chatId, `Получил файл: ${fileName}. Обрабатываю...`);
 
-      if (!allowed.includes(mime) && !allowedExt.includes(ext)) {
-        await sendMessage(chatId, `❌ Формат не поддерживается: ${name}\nПоддерживаются: .txt, .docx, .pdf`);
-        return new Response("ok");
+      try {
+        const extracted = await extractText(fileId, fileName);
+        const date = new Date().toISOString();
+        await appendRow([date, String(userId), fileName, extracted]);
+        await sendMessage(chatId, `✅ Файл сохранён в таблицу! (${extracted.length} символов)`);
+      } catch (e) {
+        console.error("file error:", e);
+        await sendMessage(chatId, `❌ Ошибка: ${e.message}`);
       }
-
-      await sendMessage(chatId, `⏳ Обрабатываю файл ${name}...`);
-
-      const extractedText = await extractText(file_id, name);
-
-      if (!extractedText || extractedText.length < 10) {
-        await sendMessage(chatId, `❌ Не удалось извлечь текст из ${name}.\nПопробуй сохранить как .txt`);
-        return new Response("ok");
-      }
-
-      const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
-      const accessToken = await getGoogleAccessToken(serviceAccountKey);
-      await appendMeeting(accessToken, today, telegramId, name, extractedText);
-
-      const allToday = await getTodayMeetings(accessToken, telegramId);
-      await sendMessage(
-        chatId,
-        `✅ Стенограмма сохранена: ${name}\n📅 Всего за сегодня: ${allToday.length} совещани${allToday.length === 1 ? "е" : "й"}\n\nНапиши /сводка когда будешь готова.`
-      );
       return new Response("ok");
     }
 
-    // ── Unknown message ───────────────────────────────────────────────────────
+    // Default
     if (text && !text.startsWith("/")) {
-      await sendMessage(chatId, `Отправь файл (.txt, .docx, .pdf) или напиши /помощь`);
+      await sendMessage(chatId, "Отправь .txt файл со стенограммой или используй /сводка");
     }
 
     return new Response("ok");
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("meetings-bot error:", error);
     return new Response("ok"); // Always return 200 to Telegram
   }
-
 });
