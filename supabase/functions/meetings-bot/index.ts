@@ -162,6 +162,7 @@ async function getSummary(texts: string[]): Promise<string> {
 serve(async (req) => {
     // Setup webhook
   const url = new URL(req.url);
+    console.log('URL pathname:', url.pathname, 'has setup:', url.searchParams.has('setup'));
   if (url.pathname.endsWith("/setup")) {
     const webhookUrl = `https://hvsighjpcycwoqpmuvga.supabase.co/functions/v1/meetings-bot`;
     const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
@@ -256,4 +257,5 @@ serve(async (req) => {
     console.error("meetings-bot error:", error);
     return new Response("ok"); // Always return 200 to Telegram
   }
+
 });
