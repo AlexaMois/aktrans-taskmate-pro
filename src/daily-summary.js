@@ -13,11 +13,11 @@ const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 
 async function fetchTodayTranscripts() {
   try {
-    // Get today's date in Moscow timezone
+            // Get today's date in Krasnoyarsk timezone (UTC+7)
     const today = new Date();
-    const moscowOffset = 3 * 60; // UTC+3
-    const moscowTime = new Date(today.getTime() + moscowOffset * 60 * 1000);
-    const todayStr = moscowTime.toISOString().split('T')[0];
+            const krasnoyarskOffset = 7 * 60; // UTC+7 Krasnoyarsk
+            const krasnoyarskTime = new Date(today.getTime() + krasnoyarskOffset * 60 * 1000);
+            const todayStr = krasnoyarskTime.toISOString().split('T')[0];
     
     console.log(`Fetching transcripts for date: ${todayStr}`);
     
