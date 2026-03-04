@@ -23,7 +23,6 @@ jobs:
           deno-version: v1.x
       
       - name: Install Supabase CLI
-        run: |
         run: npm install -g supabase      - name: Deploy meetings-bot function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
