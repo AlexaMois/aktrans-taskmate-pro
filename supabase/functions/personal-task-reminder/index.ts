@@ -72,7 +72,7 @@ serve(async (req) => {
     const tasksToRemind = (tasks || []).filter((task) => {
       if (!task.owner?.telegram_id) return false;
       if (!task.last_reminded_at) return true; // никогда не напоминали
-            const lastDate = new Date(new Date(task.last_reminded_at).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10); // Krasnoyarsk date
+            const lastDate = new Date(new Date(task.last_reminded_at).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10); // Krasnoyarsk (UTC+7)
       return lastDate < todayStr; // последнее напоминание было до сегодня
     });
 
