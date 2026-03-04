@@ -24,8 +24,7 @@ jobs:
       
       - name: Install Supabase CLI
         run: |
-npm install -g supabase      
-      - name: Deploy meetings-bot function
+        run: npm install -g supabase      - name: Deploy meetings-bot function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: hvsighjpcycwoqpmuvga
