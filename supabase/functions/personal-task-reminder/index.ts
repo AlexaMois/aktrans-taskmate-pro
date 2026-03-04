@@ -50,6 +50,7 @@ serve(async (req) => {
       .eq("scope", "personal")
       .neq("status", "done")
       .lt("created_at", twentyFourHoursAgo)
+              .or(`last_reminded_at.is.null,last_reminded_at.lt.${twentyFourHoursAgo}`)
       .returns<Array<{
         id: string;
         title: string;
@@ -67,11 +68,11 @@ serve(async (req) => {
     console.log(`Found ${tasks?.length || 0} personal tasks older than 24h`);
 
     // ── Фильтруем: не напоминали сегодня ───────────────────────────────────
-    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+      const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10); // YYYY-MM-DD Krasnoyarsk (UTC+7)
     const tasksToRemind = (tasks || []).filter((task) => {
       if (!task.owner?.telegram_id) return false;
       if (!task.last_reminded_at) return true; // никогда не напоминали
-      const lastDate = task.last_reminded_at.slice(0, 10);
+            const lastDate = new Date(new Date(task.last_reminded_at).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10); // Krasnoyarsk date
       return lastDate < todayStr; // последнее напоминание было до сегодня
     });
 
