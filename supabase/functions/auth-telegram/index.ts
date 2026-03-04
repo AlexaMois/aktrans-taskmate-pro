@@ -159,7 +159,7 @@ serve(async (req) => {
     try {
       const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
       const sheetId = Deno.env.get("GOOGLE_SHEET_ID")!;
-      const accessToken = await getAccessToken(serviceAccountKey);
+        const accessToken = await getGoogleAccessToken(serviceAccountKey);
       const sheetName = `U_${userData.telegram_id}`;
 
       // Check if sheet exists by trying to get it
