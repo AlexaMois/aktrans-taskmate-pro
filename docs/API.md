@@ -229,3 +229,39 @@ curl -X POST http://localhost:54321/functions/v1/personal-task-reminder
 ```bash
 supabase functions deploy personal-task-reminder
 ```
+
+
+---
+
+## Известные баги и исправления
+
+### Bug Fix: personal-task-reminder (04.03.2026)
+
+**Проблема**: Бот отправлял уведомления ночью многократно.
+
+**Причина**: `todayStr` и `lastDate` вычислялись в UTC, а не в часовом поясе Красноярска (UTC+7). При переходе через полночь UTC (= 07:00 Красноярск) бот считал что ещё не напоминал сегодня и отправлял повторно.
+
+**Исправление**:
+```typescript
+// Было (UTC):
+const todayStr = new Date().toISOString().slice(0, 10);
+const lastDate = task.last_reminded_at.slice(0, 10);
+
+// Стало (UTC+7 Красноярск):
+const todayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const lastDate = new Date(new Date(task.last_reminded_at).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+```
+
+**Дополнительная защита** (фильтр на уровне БД):
+```typescript
+.or(`last_reminded_at.is.null,last_reminded_at.lt.${twentyFourHoursAgo}`)
+```
+
+---
+
+## Changelog
+
+| Дата | Версия | Изменение |
+|------|--------|-----------|
+| 04.03.2026 | 1.1.0 | Исправлен баг с ночными уведомлениями (UTC+7) |
+| - | 1.0.0 | Первоначальный релиз |
